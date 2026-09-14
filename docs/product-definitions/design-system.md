@@ -14,7 +14,7 @@ not introduce a new component library or duplicate the application shell.
 
 ---
 
-## Performance overview (`/transactions`)
+## Performance overview (`/`)
 
 This is the first and highest-priority product screen. It is a normalized
 financial-data dashboard, not a transaction ledger.

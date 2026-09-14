@@ -17,7 +17,7 @@ import {
 } from "@/components/ui/command"
 
 const pages = [
-  { label: "Performance", icon: TrendingUpIcon, href: "/transactions" },
+  { label: "Performance", icon: TrendingUpIcon, href: "/" },
   { label: "Notifications", icon: BellIcon, href: "/notifications" },
   { label: "Settings", icon: SettingsIcon, href: "/settings" },
   { label: "Sign In", icon: LogInIcon, href: "/sign-in" },

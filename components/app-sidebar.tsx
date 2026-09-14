@@ -28,7 +28,7 @@ const data = {
     email: "user@example.com",
     avatar: "/avatars/user.jpg",
   },
-  navDaily: [{ title: "Performance", url: "/transactions", icon: <TrendingUpIcon /> }],
+  navDaily: [{ title: "Performance", url: "/", icon: <TrendingUpIcon /> }],
   navAuth: [
     { title: "Sign In", url: "/sign-in", icon: <LogInIcon /> },
   ],
@@ -44,7 +44,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       <SidebarHeader>
         <SidebarMenu>
           <SidebarMenuItem>
-            <SidebarMenuButton size="lg" render={<Link href="/transactions" />}>
+            <SidebarMenuButton size="lg" render={<Link href="/" />}>
               <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground">
                 <LandmarkIcon className="size-4" />
               </div>
