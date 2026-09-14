@@ -1,62 +1,50 @@
-import { ArrowDownLeftIcon, ArrowUpRightIcon, HashIcon, TrendingUpIcon } from "lucide-react"
+import { CheckCircle2Icon, Clock3Icon, FileTextIcon, LandmarkIcon } from "lucide-react"
 
 import { cn } from "@/lib/utils"
-import type { FullTransaction } from "@/data/seed"
+import type { PerformanceRecord } from "@/data/performance"
 
 interface TransactionSummaryProps {
-  transactions: FullTransaction[]
+  records: PerformanceRecord[]
 }
 
-const fmt = (n: number) =>
-  new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency: "USD",
-    minimumFractionDigits: 2,
-  }).format(n)
-
-export function TransactionSummary({ transactions }: TransactionSummaryProps) {
-  const totalIn = transactions
-    .filter((t) => t.type === "income")
-    .reduce((s, t) => s + t.amount, 0)
-
-  const totalOut = transactions
-    .filter((t) => t.type === "expense")
-    .reduce((s, t) => s + Math.abs(t.amount), 0)
-
-  const largest = transactions.length
-    ? transactions.reduce((max, t) =>
-        Math.abs(t.amount) > Math.abs(max.amount) ? t : max
-      )
-    : null
+export function TransactionSummary({ records }: TransactionSummaryProps) {
+  const funds = new Set(records.map((record) => record.fund)).size
+  const documents = new Map(records.map((record) => [record.documentId, record]))
+  const processed = [...documents.values()].filter(
+    (record) => record.status === "processed"
+  ).length
+  const requiresAttention = [...documents.values()].filter(
+    (record) => record.status !== "processed"
+  ).length
 
   const cards = [
     {
-      label: "Total In",
-      value: fmt(totalIn),
-      icon: ArrowDownLeftIcon,
-      color: "text-emerald-500",
-      bg: "bg-emerald-500/10",
-    },
-    {
-      label: "Total Out",
-      value: fmt(totalOut),
-      icon: ArrowUpRightIcon,
-      color: "text-rose-500",
-      bg: "bg-rose-500/10",
-    },
-    {
-      label: "Largest",
-      value: largest ? fmt(Math.abs(largest.amount)) : "$0.00",
-      icon: TrendingUpIcon,
+      label: "Funds",
+      value: funds.toString(),
+      icon: LandmarkIcon,
       color: "text-primary",
       bg: "bg-primary/10",
     },
     {
-      label: "Count",
-      value: transactions.length.toString(),
-      icon: HashIcon,
-      color: "text-muted-foreground",
-      bg: "bg-muted",
+      label: "Source Documents",
+      value: documents.size.toString(),
+      icon: FileTextIcon,
+      color: "text-sky-600 dark:text-sky-400",
+      bg: "bg-sky-500/10",
+    },
+    {
+      label: "Processed",
+      value: processed.toString(),
+      icon: CheckCircle2Icon,
+      color: "text-emerald-600 dark:text-emerald-400",
+      bg: "bg-emerald-500/10",
+    },
+    {
+      label: "Pending / Failed",
+      value: requiresAttention.toString(),
+      icon: Clock3Icon,
+      color: "text-amber-600 dark:text-amber-400",
+      bg: "bg-amber-500/10",
     },
   ]
 

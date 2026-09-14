@@ -1,18 +1,8 @@
 "use client"
 
-import Image from "next/image"
-import { AnimatePresence, motion } from "motion/react"
-import { EmptyState } from "@/components/empty-state"
-import {
-  CreditCardIcon,
-  FileTextIcon,
-  InfoIcon,
-  MoreHorizontalIcon,
-  StickyNoteIcon,
-} from "lucide-react"
+import { FileTextIcon } from "lucide-react"
 
-import { cn } from "@/lib/utils"
-import type { FullTransaction } from "@/data/seed"
+import { EmptyState } from "@/components/empty-state"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -23,263 +13,187 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import type { DocumentStatus, PerformanceRecord } from "@/data/performance"
+import { cn } from "@/lib/utils"
 
 interface TransactionTableProps {
-  transactions: FullTransaction[]
-  selectedIds: Set<string>
-  setSelectedIds: (ids: Set<string>) => void
+  records: PerformanceRecord[]
   expandedId: string | null
   setExpandedId: (id: string | null) => void
 }
 
-const fmt = (n: number) =>
-  new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency: "USD",
-    minimumFractionDigits: 2,
-  }).format(Math.abs(n))
+const dateFormatter = new Intl.DateTimeFormat("en-US", {
+  day: "numeric",
+  month: "short",
+  year: "numeric",
+})
 
-function statusBadge(status: FullTransaction["status"]) {
+const percentageFormatter = new Intl.NumberFormat("en-US", {
+  maximumFractionDigits: 1,
+  minimumFractionDigits: 1,
+  style: "percent",
+})
+
+const moneyFormatter = (currency: string, value: number) =>
+  new Intl.NumberFormat("en-US", {
+    currency,
+    maximumFractionDigits: value >= 1_000_000 ? 0 : 2,
+    minimumFractionDigits: value >= 1_000_000 ? 0 : 2,
+    style: "currency",
+  }).format(value >= 1_000_000 ? value / 1_000_000 : value) + (value >= 1_000_000 ? "M" : "")
+
+function statusBadge(status: DocumentStatus) {
   switch (status) {
-    case "completed":
-      return <Badge variant="default">Completed</Badge>
-    case "pending":
-      return (
-        <Badge variant="outline" className="text-amber-500 dark:text-amber-400">
-          Pending
-        </Badge>
-      )
+    case "processed":
+      return <Badge variant="default">Processed</Badge>
+    case "processing":
+      return <Badge variant="outline" className="text-amber-600 dark:text-amber-400">Processing</Badge>
     case "failed":
       return <Badge variant="destructive">Failed</Badge>
   }
 }
 
+function mockSourceHref(record: PerformanceRecord) {
+  const content = [
+    record.documentName,
+    "",
+    `Fund: ${record.fund}`,
+    `Manager: ${record.manager}`,
+    `Report date: ${record.reportDate}`,
+    `YTD return: ${percentageFormatter.format(record.ytdReturn)}`,
+  ].join("\n")
+
+  return `data:text/plain;charset=utf-8,${encodeURIComponent(content)}`
+}
+
 export function TransactionTable({
-  transactions,
-  selectedIds,
-  setSelectedIds,
+  records,
   expandedId,
   setExpandedId,
 }: TransactionTableProps) {
-  const allSelected =
-    transactions.length > 0 && transactions.every((t) => selectedIds.has(t.id))
-
-  const someSelected =
-    transactions.some((t) => selectedIds.has(t.id)) && !allSelected
-
-  function toggleAll() {
-    if (allSelected) {
-      setSelectedIds(new Set())
-    } else {
-      setSelectedIds(new Set(transactions.map((t) => t.id)))
-    }
-  }
-
-  function toggleOne(id: string) {
-    const next = new Set(selectedIds)
-    if (next.has(id)) {
-      next.delete(id)
-    } else {
-      next.add(id)
-    }
-    setSelectedIds(next)
-  }
-
   return (
     <div className="overflow-hidden rounded-xl ring-1 ring-foreground/10">
       <div className="overflow-x-auto">
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead className="w-10 pl-3">
-              <input
-                type="checkbox"
-                checked={allSelected}
-                ref={(el) => {
-                  if (el) el.indeterminate = someSelected
-                }}
-                onChange={toggleAll}
-                className="size-4 cursor-pointer rounded accent-primary"
-              />
-            </TableHead>
-            <TableHead>Merchant</TableHead>
-            <TableHead className="hidden sm:table-cell">Transaction ID</TableHead>
-            <TableHead className="text-right">Amount</TableHead>
-            <TableHead className="hidden md:table-cell">Date</TableHead>
-            <TableHead className="hidden lg:table-cell">Status</TableHead>
-            <TableHead className="w-10" />
-          </TableRow>
-        </TableHeader>
-
-        <TableBody>
-          {transactions.length === 0 && (
+        <Table>
+          <TableHeader>
             <TableRow>
-              <TableCell colSpan={7}>
-                <EmptyState variant="filter" className="py-12" />
-              </TableCell>
+              <TableHead>Fund</TableHead>
+              <TableHead>Manager</TableHead>
+              <TableHead>Document Type</TableHead>
+              <TableHead>Report Date</TableHead>
+              <TableHead>Strategy</TableHead>
+              <TableHead className="text-right">AUM</TableHead>
+              <TableHead className="text-right">NAV / Ending Balance</TableHead>
+              <TableHead className="text-right">YTD Return</TableHead>
+              <TableHead className="text-right">Since Inception</TableHead>
+              <TableHead>Status</TableHead>
+              <TableHead>Source</TableHead>
             </TableRow>
-          )}
+          </TableHeader>
 
-          {transactions.map((tx) => {
-            const isExpanded = expandedId === tx.id
-            return (
-              <TransactionRow
-                key={tx.id}
-                tx={tx}
-                isSelected={selectedIds.has(tx.id)}
-                isExpanded={isExpanded}
-                onToggleSelect={() => toggleOne(tx.id)}
-                onToggleExpand={() =>
-                  setExpandedId(isExpanded ? null : tx.id)
-                }
-              />
-            )
-          })}
-        </TableBody>
-      </Table>
+          <TableBody>
+            {records.length === 0 && (
+              <TableRow>
+                <TableCell colSpan={11}>
+                  <EmptyState
+                    title="No performance records found"
+                    description="Try changing the current search or filters."
+                    variant="filter"
+                    className="py-12"
+                  />
+                </TableCell>
+              </TableRow>
+            )}
+
+            {records.map((record) => {
+              const isExpanded = expandedId === record.id
+
+              return (
+                <TableRows
+                  key={record.id}
+                  record={record}
+                  isExpanded={isExpanded}
+                  onToggle={() => setExpandedId(isExpanded ? null : record.id)}
+                />
+              )
+            })}
+          </TableBody>
+        </Table>
       </div>
     </div>
   )
 }
 
-function TransactionRow({
-  tx,
-  isSelected,
+function TableRows({
+  record,
   isExpanded,
-  onToggleSelect,
-  onToggleExpand,
+  onToggle,
 }: {
-  tx: FullTransaction
-  isSelected: boolean
+  record: PerformanceRecord
   isExpanded: boolean
-  onToggleSelect: () => void
-  onToggleExpand: () => void
+  onToggle: () => void
 }) {
   return (
     <>
       <TableRow
-        className={cn(
-          "group cursor-pointer",
-          isSelected && "bg-muted/50",
-          isExpanded && "border-b-0"
-        )}
-        onClick={onToggleExpand}
+        className={cn("cursor-pointer", isExpanded && "border-b-0 bg-muted/30")}
+        onClick={onToggle}
       >
-        <TableCell className="pl-3">
-          <input
-            type="checkbox"
-            checked={isSelected}
-            onChange={onToggleSelect}
-            onClick={(e) => e.stopPropagation()}
-            className="size-4 cursor-pointer rounded accent-primary"
-          />
+        <TableCell className="font-medium">{record.fund}</TableCell>
+        <TableCell>{record.manager}</TableCell>
+        <TableCell>{record.documentType}</TableCell>
+        <TableCell>{dateFormatter.format(new Date(`${record.reportDate}T00:00:00`))}</TableCell>
+        <TableCell>{record.strategy}</TableCell>
+        <TableCell className="text-right tabular-nums">{moneyFormatter(record.currency, record.aum)}</TableCell>
+        <TableCell className="text-right tabular-nums">{moneyFormatter(record.currency, record.navOrEndingBalance)}</TableCell>
+        <TableCell className="text-right font-medium tabular-nums text-emerald-600 dark:text-emerald-400">
+          {percentageFormatter.format(record.ytdReturn)}
         </TableCell>
-
-        <TableCell>
-          <div className="flex items-center gap-2.5">
-            <Image
-              src={tx.logo}
-              alt={tx.merchant}
-              width={32}
-              height={32}
-              className="size-8 rounded-lg object-cover"
-              unoptimized
-            />
-            <div className="min-w-0">
-              <p className="truncate text-sm font-medium">{tx.merchant}</p>
-              <Badge variant="secondary" className="mt-0.5 text-[10px]">
-                {tx.category}
-              </Badge>
-            </div>
-          </div>
-        </TableCell>
-
-        <TableCell className="hidden sm:table-cell">
-          <span className="font-mono text-xs text-muted-foreground">
-            {tx.transactionId}
-          </span>
-        </TableCell>
-
-        <TableCell className="text-right">
-          <span
-            className={cn(
-              "tabular-nums text-sm font-semibold",
-              tx.type === "income" ? "text-emerald-500" : "text-foreground"
-            )}
-          >
-            {tx.type === "income" ? "+" : "-"}
-            {fmt(tx.amount)}
-          </span>
-        </TableCell>
-
-        <TableCell className="hidden md:table-cell">
-          <span className="text-sm text-muted-foreground">{tx.date}</span>
-        </TableCell>
-
-        <TableCell className="hidden lg:table-cell">
-          {statusBadge(tx.status)}
-        </TableCell>
-
+        <TableCell className="text-right tabular-nums">{percentageFormatter.format(record.sinceInception)}</TableCell>
+        <TableCell>{statusBadge(record.status)}</TableCell>
         <TableCell>
           <Button
+            render={
+              <a
+                href={mockSourceHref(record)}
+                target="_blank"
+                rel="noreferrer"
+                onClick={(event) => event.stopPropagation()}
+              />
+            }
+            size="xs"
             variant="ghost"
-            size="icon-xs"
-            className="opacity-0 transition-opacity group-hover:opacity-100"
-            onClick={(e) => {
-              e.stopPropagation()
-            }}
           >
-            <MoreHorizontalIcon className="size-4" />
+            <FileTextIcon className="size-3.5" />
+            Open source
           </Button>
         </TableCell>
       </TableRow>
 
-      {/* Expanded detail row */}
-      <AnimatePresence initial={false}>
-        {isExpanded && (
-          <tr>
-            <td colSpan={7} className="p-0">
-              <motion.div
-                initial={{ height: 0, opacity: 0 }}
-                animate={{ height: "auto", opacity: 1 }}
-                exit={{ height: 0, opacity: 0 }}
-                transition={{ duration: 0.2, ease: "easeInOut" }}
-                className="overflow-hidden"
-              >
-                <div className="flex flex-wrap gap-4 border-b bg-muted/30 px-4 py-3 pl-12 text-sm">
-                  {tx.merchantInfo && (
-                    <div className="flex items-start gap-2 text-muted-foreground">
-                      <InfoIcon className="mt-0.5 size-3.5 shrink-0" />
-                      <span>{tx.merchantInfo}</span>
-                    </div>
-                  )}
-
-                  {tx.cardLast4 && (
-                    <div className="flex items-center gap-2 text-muted-foreground">
-                      <CreditCardIcon className="size-3.5 shrink-0" />
-                      <span className="tabular-nums">
-                        Paid with card ending ****{tx.cardLast4}
-                      </span>
-                    </div>
-                  )}
-
-                  {tx.notes && (
-                    <div className="flex items-start gap-2 text-muted-foreground">
-                      <StickyNoteIcon className="mt-0.5 size-3.5 shrink-0" />
-                      <span>{tx.notes}</span>
-                    </div>
-                  )}
-
-                  <Button variant="ghost" size="xs" className="ml-auto">
-                    <FileTextIcon className="size-3.5" />
-                    View Receipt
-                  </Button>
-                </div>
-              </motion.div>
-            </td>
-          </tr>
-        )}
-      </AnimatePresence>
+      {isExpanded && (
+        <TableRow className="bg-muted/30 hover:bg-muted/30">
+          <TableCell colSpan={11} className="px-4 py-3">
+            <dl className="grid gap-3 text-sm sm:grid-cols-2 lg:grid-cols-4">
+              <div>
+                <dt className="text-muted-foreground">Document</dt>
+                <dd className="mt-0.5 font-medium">{record.documentName}</dd>
+              </div>
+              <div>
+                <dt className="text-muted-foreground">Benchmark</dt>
+                <dd className="mt-0.5 font-medium">{record.benchmark}</dd>
+              </div>
+              <div>
+                <dt className="text-muted-foreground">Currency</dt>
+                <dd className="mt-0.5 font-medium">{record.currency}</dd>
+              </div>
+              <div>
+                <dt className="text-muted-foreground">Processing status</dt>
+                <dd className="mt-0.5">{statusBadge(record.status)}</dd>
+              </div>
+            </dl>
+          </TableCell>
+        </TableRow>
+      )}
     </>
   )
 }

@@ -15,20 +15,20 @@ import {
   SidebarMenuItem,
 } from "@/components/ui/sidebar"
 import {
-  ArrowLeftRightIcon,
   SettingsIcon,
   LandmarkIcon,
   BellIcon,
   LogInIcon,
+  TrendingUpIcon,
 } from "lucide-react"
 
 const data = {
   user: {
-    name: "Abderrahim G.",
-    email: "abderrahim@fintech.com",
+    name: "Equi User",
+    email: "user@example.com",
     avatar: "/avatars/user.jpg",
   },
-  navDaily: [{ title: "Transactions", url: "/transactions", icon: <ArrowLeftRightIcon /> }],
+  navDaily: [{ title: "Performance", url: "/transactions", icon: <TrendingUpIcon /> }],
   navAuth: [
     { title: "Sign In", url: "/sign-in", icon: <LogInIcon /> },
   ],
@@ -59,7 +59,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         </SidebarMenu>
       </SidebarHeader>
       <SidebarContent>
-        <NavMain items={data.navDaily} label="Daily" />
+        <NavMain items={data.navDaily} label="Dashboard" />
         <NavMain items={data.navAuth} label="Auth" />
         <NavSecondary items={data.navSecondary} className="mt-auto" />
       </SidebarContent>

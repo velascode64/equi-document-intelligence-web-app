@@ -4,19 +4,13 @@
 
 ### Option A: Aplicación Web de Inteligencia de Documentos
 
-**Integración: Google Drive mediante OAuth**
+Integración: Google Drive (OAuth)
+Desarrollar una aplicación web que se conecte a Google Drive del usuario mediante OAuth, monitoree una carpeta específica en busca de documentos financieros (PDF, correos electrónicos en HTML, archivos CSV —como fichas técnicas de fondos, estados de cuenta e informes de rendimiento de distintos gestores) y utilice modelos de lenguaje (LLM) para extraer datos estructurados. El sistema almacenará los resultados en una base de datos y ofrecerá una interfaz de usuario para explorar, buscar y realizar consultas sobre toda la información procesada.
 
-Construir una aplicación web que se conecte al Google Drive de un usuario mediante OAuth y monitoree una carpeta específica que contenga documentos financieros, como PDFs, emails en HTML y archivos CSV. Algunos ejemplos son factsheets de fondos, estados de cuenta y reportes de rendimiento provenientes de distintos gestores.
+La aplicación debe adaptarse a la realidad de que cada documento es diferente: distintos diseños, terminología variada y formatos diversos. El usuario no debería tener que configurar un analizador (parser) para cada documento. La conexión con Google Drive debe sincronizarse de modo que los nuevos archivos añadidos a la carpeta se detecten y procesen automáticamente, sin necesidad de volver a subirlos de forma manual.
 
-La aplicación debe utilizar LLMs para extraer información estructurada de estos documentos. Los resultados deben almacenarse en una base de datos y estar disponibles desde una interfaz que permita explorar, buscar y consultar toda la información que haya sido procesada.
+Imagine el siguiente escenario: "Conecto mi cuenta de Google Drive, selecciono una carpeta que contiene 20 archivos PDF de formato irregular provenientes de distintos gestores de fondos y, de inmediato, puedo visualizar una tabla con todos los datos de rendimiento extraídos, filtrar por fondo o fecha y preguntar: '¿Qué fondo obtuvo el mejor rendimiento en enero?'; además, cuando llega una nueva ficha técnica a la carpeta, esta se procesa automáticamente".
 
-El sistema debe asumir que cada documento puede tener una estructura diferente: distintos layouts, terminología y formatos. El usuario no debería tener que configurar un parser específico para cada tipo de documento.
-
-La conexión con Google Drive debe mantenerse sincronizada, de manera que cualquier archivo nuevo que se agregue a la carpeta seleccionada sea detectado y procesado automáticamente, sin necesidad de volver a subirlo manualmente.
-
-### Experiencia esperada
-
-> “Conecto mi Google Drive, selecciono una carpeta que contiene 20 PDFs desordenados de diferentes gestores de fondos y puedo ver una tabla con toda la información de rendimiento extraída. Puedo filtrar por fondo o fecha y, si posteriormente se agrega un nuevo factsheet a la carpeta, el sistema lo procesa automáticamente.”
 
 ---
 
@@ -115,7 +109,7 @@ The raw extraction result can also be retained to avoid losing information that 
 
 ### Dashboard
 
-The dashboard will use **Shadcn Fintech** as the UI foundation.
+The dashboard uses the shared application design system as its UI foundation.
 
 Initial views:
 
@@ -162,4 +156,3 @@ For the initial version we are **not** building:
 * Workflow builders
 * Complex permissions or enterprise roles
 * A generalized document-processing platform
-

@@ -2,7 +2,6 @@
 
 import { SearchIcon } from "lucide-react"
 
-import { cn } from "@/lib/utils"
 import { Input } from "@/components/ui/input"
 import {
   Select,
@@ -15,92 +14,88 @@ import {
 interface TransactionFiltersProps {
   search: string
   setSearch: (v: string) => void
-  categoryFilter: string
-  setCategoryFilter: (v: string) => void
-  statusFilter: string
-  setStatusFilter: (v: string) => void
-  typeFilter: string
-  setTypeFilter: (v: string) => void
-  categories: string[]
+  fundFilter: string
+  setFundFilter: (v: string) => void
+  dateFilter: string
+  setDateFilter: (v: string) => void
+  sort: "return-desc" | "return-asc"
+  setSort: (v: "return-desc" | "return-asc") => void
+  funds: string[]
+  reportDates: string[]
 }
 
 export function TransactionFilters({
   search,
   setSearch,
-  categoryFilter,
-  setCategoryFilter,
-  statusFilter,
-  setStatusFilter,
-  typeFilter,
-  setTypeFilter,
-  categories,
+  fundFilter,
+  setFundFilter,
+  dateFilter,
+  setDateFilter,
+  sort,
+  setSort,
+  funds,
+  reportDates,
 }: TransactionFiltersProps) {
-  const typeOptions = ["all", "income", "expense"] as const
+  const dateLabel = (date: string) =>
+    new Intl.DateTimeFormat("en-US", { month: "short", year: "numeric" }).format(
+      new Date(`${date}T00:00:00`)
+    )
 
   return (
     <div className="flex flex-wrap items-center gap-2">
-      {/* Search */}
       <div className="relative w-full sm:min-w-[200px] sm:flex-1">
         <SearchIcon className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
         <Input
-          placeholder="Search transactions..."
+          placeholder="Search funds or managers..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           className="pl-8"
         />
       </div>
 
-      {/* Category */}
       <Select
-        value={categoryFilter}
-        onValueChange={(v) => v && setCategoryFilter(v)}
+        value={fundFilter}
+        onValueChange={(v) => v && setFundFilter(v)}
       >
-        <SelectTrigger>
-          <SelectValue placeholder="Category" />
+        <SelectTrigger className="w-full sm:w-44">
+          <SelectValue placeholder="Fund" />
         </SelectTrigger>
         <SelectContent>
-          <SelectItem value="all">All Categories</SelectItem>
-          {categories.map((cat) => (
-            <SelectItem key={cat} value={cat}>
-              {cat}
+          <SelectItem value="all">All funds</SelectItem>
+          {funds.map((fund) => (
+            <SelectItem key={fund} value={fund}>
+              {fund}
             </SelectItem>
           ))}
         </SelectContent>
       </Select>
 
-      {/* Status */}
       <Select
-        value={statusFilter}
-        onValueChange={(v) => v && setStatusFilter(v)}
+        value={dateFilter}
+        onValueChange={(v) => v && setDateFilter(v)}
       >
-        <SelectTrigger>
-          <SelectValue placeholder="Status" />
+        <SelectTrigger className="w-full sm:w-40">
+          <SelectValue placeholder="Report date" />
         </SelectTrigger>
         <SelectContent>
-          <SelectItem value="all">All Statuses</SelectItem>
-          <SelectItem value="completed">Completed</SelectItem>
-          <SelectItem value="pending">Pending</SelectItem>
-          <SelectItem value="failed">Failed</SelectItem>
+          <SelectItem value="all">All dates</SelectItem>
+          {reportDates.map((date) => (
+            <SelectItem key={date} value={date}>
+              {dateLabel(date)}
+            </SelectItem>
+          ))}
         </SelectContent>
       </Select>
 
-      {/* Type Toggle */}
-      <div className="flex items-center rounded-lg border border-border p-0.5">
-        {typeOptions.map((opt) => (
-          <button
-            key={opt}
-            onClick={() => setTypeFilter(opt)}
-            className={cn(
-              "rounded-md px-3 py-1 text-sm font-medium capitalize transition-colors",
-              typeFilter === opt
-                ? "bg-primary text-primary-foreground"
-                : "text-muted-foreground hover:text-foreground"
-            )}
-          >
-            {opt}
-          </button>
-        ))}
-      </div>
+      <Select value={sort} onValueChange={(v) => setSort(v as typeof sort)}>
+        <SelectTrigger className="w-full sm:w-44">
+          <SelectValue placeholder="Sort by return" />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="return-desc">Return: high to low</SelectItem>
+          <SelectItem value="return-asc">Return: low to high</SelectItem>
+        </SelectContent>
+      </Select>
     </div>
   )
 }

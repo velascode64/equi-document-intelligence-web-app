@@ -18,17 +18,14 @@ export const metadata: Metadata = {
   title: "Equi Document Intelligence",
   description: "Financial document intelligence dashboard.",
   openGraph: {
-    title: "Shadcn Fintech — Finance Dashboard Template",
-    description: "A premium open-source fintech dashboard built with Next.js, shadcn/ui, and Tailwind CSS.",
+    title: "Equi Document Intelligence",
+    description: "Compare normalized data extracted from financial documents.",
     type: "website",
-    url: "https://shadcn-fintech.vercel.app",
-    images: [{ url: "/screenshots/shadcn-fintech.png", width: 1200, height: 630 }],
   },
   twitter: {
     card: "summary_large_image",
-    title: "Shadcn Fintech — Finance Dashboard Template",
-    description: "A premium open-source fintech dashboard built with Next.js, shadcn/ui, and Tailwind CSS.",
-    images: ["/screenshots/shadcn-fintech.png"],
+    title: "Equi Document Intelligence",
+    description: "Compare normalized data extracted from financial documents.",
   },
 };
 

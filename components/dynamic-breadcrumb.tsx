@@ -14,7 +14,7 @@ import {
 const labelMap: Record<string, string> = {
   dashboard: "Dashboard",
   accounts: "Accounts",
-  transactions: "Transactions",
+  transactions: "Performance",
   transfers: "Transfers",
   cards: "Cards",
   crypto: "Crypto",
