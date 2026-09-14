@@ -562,7 +562,7 @@ src/
 ├── components/
 │   └── ...                     # Shared UI components
 │
-├── modules/
+├── features/                 # Product / domain functionality
 │   ├── documents/
 │   │   ├── documents.service.ts
 │   │   ├── documents.repository.ts
