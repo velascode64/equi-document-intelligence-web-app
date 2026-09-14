@@ -153,6 +153,7 @@ function TableRows({
         <TableCell>{statusBadge(record.status)}</TableCell>
         <TableCell>
           <Button
+            nativeButton={false}
             render={
               <a
                 href={mockSourceHref(record)}
