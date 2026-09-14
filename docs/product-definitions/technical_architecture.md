@@ -1,5 +1,9 @@
 # Technical Architecture — Equi Document Intelligence
 
+
+
+`smart-findoc-analyzer` owns the initial Google Drive sync flow, document parsing, LLM extraction, validation, and persistence orchestration. Provider implementations live under `src/provider/` and are mocked in tests. File cleaning utilities are reusable and are not tied to a feature.
+
 ## 1. Goal
 
 Build a simple, modular document intelligence application that:
@@ -27,7 +31,7 @@ flowchart TD
 
     C --> D[Supabase / PostgreSQL]
     C --> E[Google Drive Integration]
-    C --> F[OpenAI / LLM Integration]
+    C --> F[Anthropic / LLM Integration]
 
     E --> G[Google Drive API]
     F --> H[LLM]
@@ -76,15 +80,11 @@ Responsible for:
 * Downloading file content
 * Detecting new or updated files
 
-Google-specific implementation lives inside:
-
-```text
-src/integrations/google-drive/
-```
+Google-specific implementation is injected through provider adapters when this integration is implemented.
 
 ---
 
-#### OpenAI / LLM
+#### Anthropic / LLM
 
 Responsible for document understanding.
 
@@ -96,14 +96,37 @@ The LLM receives document content and must:
 * Identify financial entities and values
 * Return structured output matching the extraction schema
 
-LLM-specific implementation lives inside:
-
-```text
-src/integrations/openai/
-```
+The current extraction path uses Anthropic's document/tool flow in `financial-performance.parser.ts`. `src/provider/llm.provider.ts` remains available for simpler JSON extraction and tests.
 
 ---
+### 2.3 Project Structure
 
+This repository is a monorepo. The existing `src/` tree is the source of truth; no separate backend application is introduced.
+
+```text
+src/
+├── app/                         # Next.js routes and pages
+├── components/                  # Shared UI components
+├── features/
+│   └── smart-findoc-analyzer/   # Document extraction feature
+│       ├── index.ts             # Public API
+│       ├── schemas/             # Zod schemas and domain types
+│       │   ├── document.schema.ts
+│       │   └── performance.schema.ts
+│       ├── services/            # Flow orchestration
+│       │   └── analyzer.service.ts
+│       ├── actions/             # Google Drive and LLM extraction actions
+│       │   ├── google-drive.action.ts
+│       │   └── financial-performance.parser.ts
+│       └── __tests__/           # Feature-level flow tests
+├── provider/                    # Provider-agnostic external adapters
+│   ├── google.provider.ts        # Google OAuth and Drive client
+│   └── llm.provider.ts           # LLM provider helpers and mocks
+├── utils/                       # Reusable file/content utilities
+│   └── document-text.ts
+└── lib/
+    └── supabase/                # Database clients and test doubles
+```
 ## 3. Authentication & Google OAuth
 
 Authentication is handled with **Supabase Auth**.
@@ -145,8 +168,8 @@ Authentication-specific application code should use the existing Supabase client
 
 ```text
 src/lib/supabase/
-├── client.ts
-└── server.ts
+├── backend-client.ts
+└── mock-repository.ts
 ```
 
 ### Google OAuth
@@ -179,6 +202,7 @@ Required environment variables:
 ```text
 GOOGLE_CLIENT_ID=
 GOOGLE_CLIENT_SECRET=
+GOOGLE_REDIRECT_URI=
 ```
 
 Supabase Google provider configuration must use the same Google OAuth credentials.
@@ -201,11 +225,7 @@ select folder
 read folder contents
 ```
 
-The Google integration remains isolated under:
-
-```text
-src/integrations/google-drive/
-```
+Google Drive access remains isolated behind `src/provider/google.provider.ts` and `actions/google-drive.action.ts`; the analyzer service consumes those actions and does not call the Google SDK directly.
 
 Do not place Google OAuth or Drive-specific logic directly inside UI components.
 
@@ -221,9 +241,7 @@ erDiagram
 
     DRIVE_CONNECTION ||--o{ DOCUMENT : syncs
 
-    DOCUMENT ||--o{ PERFORMANCE_RECORD : produces
-
-    FUND ||--o{ PERFORMANCE_RECORD : has
+    DOCUMENT ||--o{ FINANCIAL_PERFORMANCE : produces
 ```
 
 ### 4.2 Entities
@@ -308,26 +326,7 @@ Relationships:
 
 ---
 
-### Fund
-
-Represents a normalized fund identified from one or more documents.
-
-Key data:
-
-* `id`
-* `name`
-* `manager`
-* `currency`
-* `created_at`
-* `updated_at`
-
-Relationships:
-
-* Can appear in many performance records
-
----
-
-### PerformanceRecord
+### FinancialPerformance
 
 Represents normalized financial information extracted from a document.
 
@@ -335,19 +334,23 @@ Key data:
 
 * `id`
 * `document_id`
-* `fund_id`
+* `user_id`
+* `drive_file_id`
+* `fund`
+* `manager`
+* `document_type`
 * `reporting_date`
-* `monthly_return`
-* `ytd_return`
+* `strategy`
+* `aum`
 * `nav`
-* `benchmark`
-* `currency`
+* `ending_balance`
+* `ytd_return`
+* `since_inception`
 * `created_at`
 
 Relationships:
 
 * Belongs to a document
-* Belongs to a fund
 
 Every normalized record must keep a reference to its source document.
 
@@ -359,13 +362,13 @@ Every normalized record must keep a reference to its source document.
 
 ```mermaid
 flowchart TD
-    A[Google Drive File] --> B[Discover File]
-    B --> C[Create or Update Document]
-    C --> D[Load File Content]
-    D --> E[Document Parser]
-    E --> F[LLM Extraction]
+    A[syncGoogleDriveFolder] --> B[List Drive Folder Documents]
+    B --> C[Download Supported Files]
+    C --> D[Create Document Row]
+    D --> E[Parse Document Content]
+    E --> F[Anthropic Tool Extraction]
     F --> G[Schema Validation]
-    G --> H[Normalize Data]
+    G --> H[Persist Performance Rows]
     H --> I[Persist Data]
     I --> J[Update Document Status]
     J --> K[Dashboard]
@@ -375,38 +378,33 @@ flowchart TD
 
 ### 5.2 Drive Sync
 
-The Drive integration scans the selected folder and determines whether each file should be processed.
+The Drive integration currently lists supported files in the selected folder and downloads them for processing through `syncGoogleDriveFolder`.
 
 ```mermaid
 flowchart TD
-    A[Selected Drive Folder] --> B[List Files]
-    B --> C{Document Exists?}
-
-    C -->|No| D[Process File]
-
-    C -->|Yes| E{modified_time Changed?}
-
-    E -->|Yes| D
-    E -->|No| F[Skip]
+    A[Selected Drive Folder] --> B[listGoogleDriveFolderDocuments]
+    B --> C[downloadGoogleDriveFile]
+    C --> D[processDocument]
 ```
 
-Rules:
+Current rules:
 
-* New file → process
-* Existing file with changed `modified_time` → process again
-* Existing unchanged file → skip
+* PDF, HTML, and CSV files are accepted.
+* Unsupported mime types are ignored.
+* Each supported file is passed into `processDocument`.
+* Idempotency and `modified_time` reprocessing are still pending.
 
 ---
 
 ### 5.3 Document Parser
 
-`documents.parser.ts` prepares the source document for the LLM.
+`smart-findoc-analyzer/actions/financial-performance.parser.ts` prepares the source document for the LLM.
 
 It does not interpret financial meaning.
 
 ```mermaid
 flowchart TD
-    A[PDF / HTML / CSV] --> B[documents.parser.ts]
+    A[PDF / HTML / CSV] --> B[financial-performance.parser.ts]
     B --> C[DocumentContent]
 ```
 
@@ -437,11 +435,11 @@ The LLM is responsible for understanding those differences.
 
 ### 5.4 LLM Extraction
 
-The document content is sent to the LLM together with the expected structured schema.
+The document content is sent to Anthropic together with a tool schema that returns normalized performance rows.
 
 ```mermaid
 flowchart TD
-    A[DocumentContent] --> B[OpenAI Integration]
+    A[DocumentContent] --> B[Anthropic Document Tool]
     B --> C[LLM]
     C --> D[Structured Extraction]
 ```
@@ -451,29 +449,30 @@ The LLM may identify:
 * Document type
 * Fund name
 * Fund manager
-* Reporting period
-* Monthly return
+* Report date
+* Strategy
+* AUM
 * YTD return
 * NAV
-* Currency
-* Benchmark
+* Ending balance
+* Since inception return
 
 Example:
 
 ```ts
 {
-  documentType: "fund_factsheet",
-  fund: {
-    name: "Alpha Growth Fund",
-    manager: "Alpha Capital",
-    currency: "USD"
-  },
   performance: [
     {
+      fund: "Alpha Growth Fund",
+      manager: "Alpha Capital",
+      documentType: "fund_factsheet",
       reportingDate: "2026-01-31",
-      monthlyReturn: 0.042,
-      ytdReturn: 0.042,
-      nav: 125.30
+      strategy: "Global Equity",
+      aum: 850000000,
+      nav: 125.30,
+      endingBalance: null,
+      ytdReturn: 0.076,
+      sinceInception: 0.097
     }
   ]
 }
@@ -496,9 +495,8 @@ After validation, the extraction is normalized and persisted.
 ```mermaid
 flowchart TD
     A[Validated Extraction] --> B[Save raw_extraction]
-    B --> C[Find or Create Fund]
-    C --> D[Create Performance Records]
-    D --> E[Mark Document Completed]
+    B --> C[Create Financial Performance Rows]
+    C --> D[Mark Document Completed]
 ```
 
 If processing fails:
@@ -540,142 +538,35 @@ Validation should cover:
 
 Schemas live inside the related module.
 
-Example:
+Current schema files:
 
 ```text
 documents.schema.ts
-funds.schema.ts
 performance.schema.ts
 ```
 
 ---
 
-## 7. Project Structure
-
-The application follows a modular structure.
-
-```text
-src/
-├── app/
-│   └── ...                     # Next.js UI / routes
-│
-├── components/
-│   └── ...                     # Shared UI components
-│
-├── modules/
-│   ├── documents/
-│   │   ├── documents.service.ts
-│   │   ├── documents.repository.ts
-│   │   ├── documents.parser.ts
-│   │   ├── documents.types.ts
-│   │   └── documents.schema.ts
-│   │
-│   ├── funds/
-│   │   ├── funds.service.ts
-│   │   ├── funds.repository.ts
-│   │   ├── funds.types.ts
-│   │   └── funds.schema.ts
-│   │
-│   ├── performance/
-│   │   ├── performance.service.ts
-│   │   ├── performance.repository.ts
-│   │   ├── performance.types.ts
-│   │   └── performance.schema.ts
-│   │
-│   ├── drive/
-│   │   ├── drive.service.ts
-│   │   ├── drive.repository.ts
-│   │   └── drive.types.ts
-│   │
-│   └── search/
-│       └── search.service.ts
-│
-├── integrations/
-│   ├── google-drive/
-│   │   ├── google-drive.client.ts
-│   │   ├── google-drive.auth.ts
-│   │   └── google-drive.types.ts
-│   │
-│   └── openai/
-│       ├── openai.client.ts
-│       └── openai.extractor.ts
-│
-└── lib/
-    └── supabase/
-        ├── client.ts
-        └── server.ts
-```
-
-### Module Responsibilities
-
-#### `service`
-
-Contains application logic.
-
-Examples:
-
-```text
-process document
-sync Drive folder
-normalize extraction
-```
-
----
-
-#### `repository`
-
-Contains database access.
-
-Examples:
-
-```text
-find document
-create document
-find fund
-create performance record
-```
-
-Repositories should not contain business logic.
-
----
-
-#### `parser`
-
-Transforms source file content into the common document representation used by the LLM.
-
----
-
-#### `schema`
-
-Contains Zod validation schemas.
-
----
-
-#### `types`
-
-Contains shared TypeScript types for the module.
-
----
-## 7. Testing
+## 8. Testing
 
 Use **Vitest** for unit testing.
 
-The initial testing scope focuses on business logic inside:
+The initial testing scope focuses on the main Drive-to-analysis flow inside:
 
 ```text
-src/modules/
+src/features/smart-findoc-analyzer/
 ```
 
 ### What to Test
 
 Unit tests should cover:
 
-* Services
-* Parsers
-* Normalization logic
-* Validation schemas
+* `syncGoogleDriveFolder`
+* Google Drive listing/download mocks
+* LLM extraction mock
+* Supabase persistence mock
 * Error handling
-* Reprocessing / deduplication behavior where applicable
+* Reprocessing / deduplication behavior when implemented
 
 ### Mocking
 
@@ -684,8 +575,8 @@ External dependencies must be mocked.
 Examples:
 
 * Google Drive API
-* OpenAI / LLM calls
-* Supabase repositories
+* Anthropic / LLM calls
+* Supabase client calls
 * Network requests
 
 Unit tests should not call real external services.
@@ -693,11 +584,11 @@ Unit tests should not call real external services.
 Example:
 
 ```text
-documents.service.ts
+syncGoogleDriveFolder
         │
-        ├── documents.repository.ts   → mock
-        ├── google-drive integration  → mock
-        └── openai integration        → mock
+        ├── Google Drive API          → mock
+        ├── LLM extraction            → mock
+        └── Supabase client           → mock
 ```
 
 Tests should validate module behavior independently from infrastructure.
@@ -707,12 +598,8 @@ Tests should validate module behavior independently from infrastructure.
 Keep tests close to the code they cover.
 
 ```text
-src/modules/documents/
-├── documents.service.ts
-├── documents.service.test.ts
-├── documents.parser.ts
-├── documents.parser.test.ts
-└── ...
+src/features/smart-findoc-analyzer/__tests__/
+└── sync-google-drive-folder.test.ts
 ```
 
 ### Test Runner
@@ -720,7 +607,7 @@ src/modules/documents/
 Use:
 
 ```bash
-bun run test
+bun run test:unit
 ```
 
 Vitest is the default test runner for module-level unit tests.
@@ -728,7 +615,7 @@ Vitest is the default test runner for module-level unit tests.
 Integration and end-to-end testing are outside the initial scope unless a specific feature requires them.
 
 
-## 8. Non-Goals
+## 9. Non-Goals
 
 The initial version does not include:
 
@@ -742,4 +629,3 @@ The initial version does not include:
 * Multiple storage providers
 * Advanced portfolio analytics
 * Enterprise permissions
-* Separate Python services unless a concrete document-processing requirement needs them
