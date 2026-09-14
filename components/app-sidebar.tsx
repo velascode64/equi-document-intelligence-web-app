@@ -15,7 +15,6 @@ import {
   SidebarMenuItem,
 } from "@/components/ui/sidebar"
 import {
-  SettingsIcon,
   LandmarkIcon,
   BellIcon,
   LogInIcon,
@@ -35,7 +34,6 @@ const data = {
   navAuth: [
     { title: "Sign In", url: "/sign-in", icon: <LogInIcon /> },
   ],
-  navSecondary: [{ title: "Settings", url: "/settings", icon: <SettingsIcon /> }],
 }
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
@@ -62,7 +60,6 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         <NavSecondary items={data.navNotifications} />
         <NavMain items={data.navDaily} label="Dashboard" />
         <NavMain items={data.navAuth} label="Auth" />
-        <NavSecondary items={data.navSecondary} className="mt-auto" />
       </SidebarContent>
       <SidebarFooter>
         <NavUser user={data.user} />
