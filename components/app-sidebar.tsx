@@ -59,7 +59,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         </SidebarMenu>
       </SidebarHeader>
       <SidebarContent>
-        <NavMain items={data.navNotifications} label="Updates" />
+        <NavSecondary items={data.navNotifications} />
         <NavMain items={data.navDaily} label="Dashboard" />
         <NavMain items={data.navAuth} label="Auth" />
         <NavSecondary items={data.navSecondary} className="mt-auto" />
