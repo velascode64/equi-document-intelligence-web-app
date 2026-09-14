@@ -14,6 +14,10 @@ import {
   listGoogleDriveFolderDocuments,
   type DriveClientLike,
 } from "../actions/google-drive.action"
+import {
+  createFinancialPerformanceRows,
+  toFinancialPerformanceRows,
+} from "./financial-performance.service"
 import type { PartialOAuthCredentials } from "@/src/provider/google.provider"
 
 export type ProcessDocumentInput = DocumentContent & {
@@ -115,7 +119,10 @@ export async function processDocument(
       })
     )
 
-    await insertPerformanceRows(supabase, documentId, input, extraction.performance)
+    await createFinancialPerformanceRows(
+      supabase,
+      toFinancialPerformanceRows(documentId, extraction.performance)
+    )
     const completed = await updateDocument(supabase, documentId, {
       status: "completed",
       raw_extraction: extraction satisfies LLMDocumentAnalysisResponse,
@@ -168,32 +175,4 @@ async function updateDocument(supabase: SupabaseClientLike, id: string, values: 
   const { data, error } = await supabase.from("documents").update(values).eq("id", id).select("*").single()
   if (error) throw new Error(error.message)
   return data
-}
-
-async function insertPerformanceRows(
-  supabase: SupabaseClientLike,
-  documentId: string,
-  input: ProcessDocumentInput,
-  rows: DocumentPerformanceRow[]
-) {
-  if (!rows.length) return
-
-  const values = rows.map((row) => ({
-    document_id: documentId,
-    user_id: input.userId,
-    drive_file_id: input.driveFileId,
-    fund: row.fund,
-    manager: row.manager,
-    document_type: row.documentType,
-    reporting_date: row.reportingDate,
-    strategy: row.strategy,
-    aum: row.aum,
-    nav: row.nav,
-    ending_balance: row.endingBalance,
-    ytd_return: row.ytdReturn,
-    since_inception: row.sinceInception,
-  }))
-
-  const { error } = await supabase.from("financial_performance").insert(values)
-  if (error) throw new Error(error.message)
 }

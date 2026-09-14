@@ -78,8 +78,6 @@ describe("syncGoogleDriveFolder", () => {
     expect(supabase.table("financial_performance")).toEqual([
       expect.objectContaining({
         document_id: "document-1",
-        user_id: "user-1",
-        drive_file_id: "drive-file-1",
         fund: "Alpha Fund",
         manager: "Manager A",
         document_type: "fund_factsheet",
