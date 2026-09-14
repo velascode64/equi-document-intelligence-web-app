@@ -7,8 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test:unit": "vitest run src/test/unit",
-    "test:integration": "vitest run src/test/integration"
+    "test": "vitest run",
+    "test:integration": "vitest run"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^2.0.0",
@@ -16,8 +16,8 @@
     "@base-ui/react": "^1.8.0",
     "@react-three/drei": "^10.7.8",
     "@react-three/fiber": "^9.7.0",
+    "@supabase/ssr": "^0.12.7",
     "@supabase/supabase-js": "^2.116.0",
-    "@supabase/ssr": "^2.116.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "cmdk": "^1.1.1",

@@ -8,6 +8,13 @@ import {
 } from "../actions/financial-performance.parser"
 import type { DocumentContent, SupportedMimeType } from "../schemas/document.schema"
 import { createBackendSupabaseClient } from "@/src/lib/supabase/backend-client"
+import {
+  downloadGoogleDriveFile,
+  getGoogleDriveActionClient,
+  listGoogleDriveFolderDocuments,
+  type DriveClientLike,
+} from "../actions/google-drive.action"
+import type { PartialOAuthCredentials } from "@/src/provider/google.provider"
 
 export type ProcessDocumentInput = DocumentContent & {
   userId: string
@@ -38,6 +45,7 @@ type SupabaseQueryResultLike = {
 
 export type AnalyzerDependencies = {
   supabase?: SupabaseClientLike
+  drive?: DriveClientLike
   extractPerformance?: typeof extractFinancialPerformance
   id?: () => string
   now?: () => string
@@ -46,6 +54,16 @@ export type AnalyzerDependencies = {
 export type ProcessDocumentResult = {
   document: unknown
   performance: DocumentPerformanceRow[]
+}
+
+export type SyncGoogleDriveFolderInput = {
+  userId: string
+  folderId: string
+  credentials: PartialOAuthCredentials
+}
+
+export type SyncGoogleDriveFolderResult = {
+  processed: ProcessDocumentResult[]
 }
 
 const performanceRowSchema = z.object({
@@ -112,6 +130,32 @@ export async function processDocument(
     })
     throw error
   }
+}
+
+export async function syncGoogleDriveFolder(
+  input: SyncGoogleDriveFolderInput,
+  dependencies: AnalyzerDependencies = {}
+): Promise<SyncGoogleDriveFolderResult> {
+  const drive = dependencies.drive ?? getGoogleDriveActionClient(input.credentials)
+  const processed: ProcessDocumentResult[] = []
+
+  for (const file of await listGoogleDriveFolderDocuments(input, drive)) {
+    const content = await downloadGoogleDriveFile(file.id, drive)
+    processed.push(
+      await processDocument(
+        {
+          userId: input.userId,
+          driveFileId: file.id,
+          filename: file.name,
+          mimeType: file.mimeType,
+          content,
+        },
+        dependencies
+      )
+    )
+  }
+
+  return { processed }
 }
 
 async function createDocument(supabase: SupabaseClientLike, values: unknown) {
