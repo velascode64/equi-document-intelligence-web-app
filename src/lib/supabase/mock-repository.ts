@@ -11,6 +11,13 @@ export class MockSupabaseClient implements SupabaseClientLike {
 
     return {
       insert: (values: unknown) => new MockResult(rows, Array.isArray(values) ? values : [values]),
+      delete: () => ({
+        eq: (column: string, value: unknown) => {
+          const deleted = rows.filter((row) => isRecord(row) && row[column] === value)
+          for (const row of deleted) rows.splice(rows.indexOf(row), 1)
+          return new MockResult(rows, [])
+        },
+      }),
       update: (values: unknown) => ({
         eq: (column: string, value: unknown) => {
           const updated = rows
