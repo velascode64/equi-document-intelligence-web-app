@@ -1,58 +1,59 @@
-import type {
-  DocumentRepository,
-  FundRepository,
-  PerformanceRepository,
-} from "@/src/features/documents/documents.service"
-import type { Document } from "@/src/features/documents/documents.types"
-import type { Fund } from "@/src/features/funds/funds.types"
-import type { PerformanceRecord } from "@/src/features/performance/performance.types"
+import type { SupabaseClientLike } from "@/src/features/smart-findoc-analyzer/services/analyzer.service"
 
-export class InMemorySupabaseRepository
-  implements DocumentRepository, FundRepository, PerformanceRepository
-{
-  readonly documents: Document[] = []
-  readonly funds: Fund[] = []
-  readonly performance: PerformanceRecord[] = []
+type SupabaseResponse = { data: unknown; error: { message: string } | null }
 
-  async create(document: Document) {
-    this.documents.push({ ...document })
-    return { ...document }
+export class MockSupabaseClient implements SupabaseClientLike {
+  readonly tables = new Map<string, unknown[]>()
+
+  from(table: string) {
+    if (!this.tables.has(table)) this.tables.set(table, [])
+    const rows = this.tables.get(table)!
+
+    return {
+      insert: (values: unknown) => new MockResult(rows, Array.isArray(values) ? values : [values]),
+      update: (values: unknown) => ({
+        eq: (column: string, value: unknown) => {
+          const updated = rows
+            .filter((row) => isRecord(row) && row[column] === value)
+            .map((row) => Object.assign(row as object, values))
+          return new MockResult(rows, updated)
+        },
+      }),
+    }
   }
 
-  async markCompleted(id: string, rawExtraction: unknown, processedAt: string) {
-    const document = this.getDocument(id)
-    Object.assign(document, { status: "completed" as const, rawExtraction, processedAt })
-    return { ...document }
+  table<T = unknown>(name: string): T[] {
+    return (this.tables.get(name) ?? []) as T[]
+  }
+}
+
+class MockResult {
+  constructor(private readonly table: unknown[], private readonly data: unknown[]) {}
+
+  then<TResult1 = SupabaseResponse, TResult2 = never>(
+    onfulfilled?: ((value: SupabaseResponse) => TResult1 | PromiseLike<TResult1>) | null,
+    onrejected?: ((reason: unknown) => TResult2 | PromiseLike<TResult2>) | null
+  ) {
+    return this.run().then(onfulfilled, onrejected)
   }
 
-  async markFailed(id: string, extractionError: string) {
-    const document = this.getDocument(id)
-    Object.assign(document, { status: "failed" as const, extractionError })
-    return { ...document }
+  select() {
+    return this
   }
 
-  async findOrCreate(input: Omit<Fund, "id">) {
-    const existing = this.funds.find(
-      (fund) =>
-        fund.name === input.name &&
-        fund.manager === input.manager &&
-        fund.currency === input.currency
-    )
-    if (existing) return { ...existing }
-
-    const fund = { id: `fund-${this.funds.length + 1}`, ...input }
-    this.funds.push(fund)
-    return { ...fund }
+  async single(): Promise<SupabaseResponse> {
+    await this.run()
+    return { data: this.data[0] ?? null, error: null }
   }
 
-  async createMany(records: PerformanceRecord[]) {
-    this.performance.push(...records.map((record) => ({ ...record })))
-    return records.map((record) => ({ ...record }))
+  private async run(): Promise<SupabaseResponse> {
+    for (const row of this.data) {
+      if (!this.table.includes(row)) this.table.push(row)
+    }
+    return { data: this.data, error: null }
   }
+}
 
-  private getDocument(id: string) {
-    const document = this.documents.find((item) => item.id === id)
-    if (!document) throw new Error(`Document not found: ${id}`)
-    return document
-  }
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null
 }

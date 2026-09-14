@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest"
 
-import { parseDocument } from "@/src/features/documents/documents.parser"
+import { parseDocumentContent } from "@/src/features/smart-findoc-analyzer/actions/financial-performance.parser"
 
-describe("parseDocument", () => {
+describe("parseDocumentContent", () => {
   it("converts HTML into clean text", () => {
-    const parsed = parseDocument({
+    const parsed = parseDocumentContent({
       filename: "report.html",
       mimeType: "text/html",
       content: "<h1>Alpha Fund</h1><script>ignored()</script><p>Return: 4.2%</p>",
@@ -14,7 +14,7 @@ describe("parseDocument", () => {
   })
 
   it("accepts CSV buffers", () => {
-    const parsed = parseDocument({
+    const parsed = parseDocumentContent({
       filename: "report.csv",
       mimeType: "text/csv",
       content: Buffer.from("fund,return\nAlpha Fund,0.042"),
@@ -24,7 +24,7 @@ describe("parseDocument", () => {
   })
 
   it("rejects unsupported or empty documents", () => {
-    expect(() => parseDocument({ filename: "note.txt", mimeType: "text/plain" as never, content: "text" })).toThrow("Unsupported document type")
-    expect(() => parseDocument({ filename: "empty.csv", mimeType: "text/csv", content: " " })).toThrow("Document is empty")
+    expect(() => parseDocumentContent({ filename: "note.txt", mimeType: "text/plain" as never, content: "text" })).toThrow("Unsupported document type")
+    expect(() => parseDocumentContent({ filename: "empty.csv", mimeType: "text/csv", content: " " })).toThrow("Document is empty")
   })
 })
