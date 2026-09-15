@@ -148,26 +148,11 @@ export async function processDocument(
       processed_at: now(),
     })
 
-    await notifyDocumentEvent(supabase, {
-      userId: input.userId,
-      type: "document_processing_completed",
-      title: "Document processed",
-      message: `${input.filename} was processed successfully and its extracted data is now available.`,
-      documentId: persistedDocumentId,
-    })
-
     return { document: completed ?? document, performance: extraction.performance }
   } catch (error) {
     await updateDocument(supabase, persistedDocumentId, {
       status: "failed",
       extraction_error: error instanceof Error ? error.message : String(error),
-    })
-    await notifyDocumentEvent(supabase, {
-      userId: input.userId,
-      type: "document_processing_failed",
-      title: "Document processing failed",
-      message: `${input.filename} could not be processed.`,
-      documentId: persistedDocumentId,
     })
     throw error
   }
@@ -205,11 +190,7 @@ export async function syncGoogleDriveFolder(
       file.id
     )
 
-    const needsProcessing = shouldProcessDriveDocument(existing, {
-      driveModifiedTime: file.modifiedTime,
-      driveMd5Checksum: file.md5Checksum,
-    })
-    if (existing && !needsProcessing) continue
+    if (existing) continue
 
     const content = await downloadGoogleDriveFile(file.id, drive)
     processed.push(

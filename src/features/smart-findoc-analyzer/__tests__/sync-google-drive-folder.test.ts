@@ -66,6 +66,7 @@ describe("syncGoogleDriveFolder", () => {
       base64Data: Buffer.from("Fund: Alpha Fund\nManager: Manager A\nYTD Return: 7.6%").toString("base64"),
     }))
     expect(result.processed).toHaveLength(1)
+    expect(supabase.table("notifications")).toHaveLength(1)
     expect(supabase.table("documents")).toEqual([
       expect.objectContaining({
         id: "document-1",
@@ -87,7 +88,7 @@ describe("syncGoogleDriveFolder", () => {
       }),
     ])
 
-    await syncGoogleDriveFolder(
+    const repeatResult = await syncGoogleDriveFolder(
       {
         userId: "user-1",
         folderId: "folder-1",
@@ -96,7 +97,9 @@ describe("syncGoogleDriveFolder", () => {
       { drive, supabase, extractPerformance }
     )
 
+    expect(repeatResult.processed).toHaveLength(0)
     expect(drive.files.get).toHaveBeenCalledTimes(1)
-    expect(supabase.table("notifications")).toHaveLength(2)
+    expect(extractPerformance).toHaveBeenCalledTimes(1)
+    expect(supabase.table("notifications")).toHaveLength(1)
   })
 })
