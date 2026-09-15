@@ -1,4 +1,4 @@
-import { TransactionsPageClient } from "@/components/transactions/transactions-page-client"
+import { PerformancePageClient } from "@/components/performance/performance-page-client"
 
 export default function Page() {
   return (
@@ -9,7 +9,7 @@ export default function Page() {
           Compare normalized data extracted from your financial documents.
         </p>
       </div>
-      <TransactionsPageClient />
+      <PerformancePageClient />
     </div>
   )
 }
