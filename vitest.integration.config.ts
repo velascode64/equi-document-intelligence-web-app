@@ -12,7 +12,8 @@ export default defineConfig({
   },
   test: {
     environment: "node",
-    include: ["src/test/**/*.test.ts", "src/features/**/__tests__/**/*.test.ts"],
-    exclude: ["**/*.integration.test.ts"],
+    include: ["src/features/**/__tests__/**/*.integration.test.ts"],
+    setupFiles: ["src/features/smart-findoc-analyzer/__tests__/setup-integration-env.ts"],
+    testTimeout: 120_000,
   },
 })

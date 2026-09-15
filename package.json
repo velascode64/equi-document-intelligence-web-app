@@ -8,7 +8,7 @@
     "start": "next start",
     "lint": "eslint",
     "test": "vitest run",
-    "test:integration": "vitest run"
+    "test:integration": "RUN_LLM_INTEGRATION_TESTS=true vitest run --config vitest.integration.config.ts"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^2.0.0",
