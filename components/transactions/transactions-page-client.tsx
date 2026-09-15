@@ -1,18 +1,142 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
+import { CheckIcon } from "lucide-react"
 
-import { performanceRecords } from "@/data/performance"
+import type { PerformanceRecord } from "@/data/performance"
 import { TransactionSummary } from "@/components/transactions/transaction-summary"
 import { TransactionFilters } from "@/components/transactions/transaction-filters"
 import { TransactionTable } from "@/components/transactions/transaction-table"
+import { Button } from "@/components/ui/button"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import { Input } from "@/components/ui/input"
+
+type DriveFolder = {
+  id: string
+  name: string
+}
 
 export function TransactionsPageClient() {
+  const [performanceRecords, setPerformanceRecords] = useState<PerformanceRecord[]>([])
+  const [folderId, setFolderId] = useState("")
+  const [folderName, setFolderName] = useState("")
+  const [folders, setFolders] = useState<DriveFolder[]>([])
+  const [foldersLoaded, setFoldersLoaded] = useState(false)
+  const [foldersError, setFoldersError] = useState<string | null>(null)
+  const [folderSearch, setFolderSearch] = useState("")
+  const [isCreatingFolder, setIsCreatingFolder] = useState(false)
+  const [connectionLoaded, setConnectionLoaded] = useState(false)
+  const [hasFolderConfigured, setHasFolderConfigured] = useState(false)
+  const [isFolderModalOpen, setIsFolderModalOpen] = useState(false)
+  const [isSavingFolder, setIsSavingFolder] = useState(false)
+  const [isSyncing, setIsSyncing] = useState(false)
+  const [message, setMessage] = useState<string | null>(null)
   const [search, setSearch] = useState("")
   const [fundFilter, setFundFilter] = useState("all")
   const [dateFilter, setDateFilter] = useState("all")
   const [sort, setSort] = useState<"return-desc" | "return-asc">("return-desc")
   const [expandedId, setExpandedId] = useState<string | null>(null)
+
+  async function loadPerformance() {
+    const response = await fetch("/api/smart-findoc-analyzer/financial-performance")
+    if (!response.ok) return
+    const data = await response.json()
+    setPerformanceRecords(data.performance ?? [])
+  }
+
+  async function loadConnection() {
+    const response = await fetch("/api/smart-findoc-analyzer/google-drive/connection")
+    setConnectionLoaded(true)
+    if (!response.ok) return
+    const data = await response.json()
+    const savedFolderId = data.connection?.google_drive_folder_id ?? ""
+    const savedFolderName = data.connection?.google_drive_folder_name ?? ""
+    setFolderId(savedFolderId)
+    setFolderName(savedFolderName)
+    setHasFolderConfigured(Boolean(savedFolderId))
+    setIsFolderModalOpen(!savedFolderId)
+  }
+
+  async function loadFolders(query = folderSearch) {
+    const params = new URLSearchParams()
+    if (query.trim()) params.set("q", query.trim())
+
+    const response = await fetch(`/api/smart-findoc-analyzer/google-drive/folders?${params}`)
+    setFoldersLoaded(true)
+    if (!response.ok) {
+      const data = await response.json().catch(() => ({}))
+      setFoldersError(data.error ?? "Could not load Google Drive folders.")
+      return
+    }
+    const data = await response.json()
+    setFoldersError(null)
+    setFolders(data.folders ?? [])
+  }
+
+  async function createFolder() {
+    const name = folderSearch.trim()
+    if (!name) {
+      setFoldersError("Type a folder name to create it in the Drive root directory.")
+      return
+    }
+
+    setIsCreatingFolder(true)
+    setFoldersError(null)
+    const response = await fetch("/api/smart-findoc-analyzer/google-drive/folders", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name }),
+    })
+    const data = await response.json().catch(() => ({}))
+    setIsCreatingFolder(false)
+
+    if (!response.ok) {
+      setFoldersError(data.error ?? "Could not create Google Drive folder.")
+      return
+    }
+
+    setFolderId(data.folder.id)
+    setFolderName(data.folder.name)
+    setFolders((current) => [data.folder, ...current])
+  }
+
+  async function saveFolder() {
+    setMessage(null)
+    setIsSavingFolder(true)
+    const response = await fetch("/api/smart-findoc-analyzer/google-drive/connection", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ folderId, folderName }),
+    })
+
+    setIsSavingFolder(false)
+    setHasFolderConfigured(response.ok && Boolean(folderId))
+    if (response.ok && folderId) setIsFolderModalOpen(false)
+    setMessage(response.ok ? "Google Drive folder saved." : "Could not save folder.")
+  }
+
+  async function syncFolder() {
+    setIsSyncing(true)
+    setMessage(null)
+    const response = await fetch("/api/smart-findoc-analyzer/sync", { method: "POST" })
+    const data = await response.json().catch(() => ({}))
+    setIsSyncing(false)
+    setMessage(response.ok ? `Synced ${data.processed ?? 0} document(s).` : data.error ?? "Sync failed.")
+    await loadPerformance()
+  }
+
+  useEffect(() => {
+    void loadConnection()
+    void loadPerformance()
+    void loadFolders()
+  }, [])
 
   const funds = useMemo(() => {
     return Array.from(new Set(performanceRecords.map((record) => record.fund))).sort()
@@ -53,6 +177,94 @@ export function TransactionsPageClient() {
 
   return (
     <div className="flex flex-col gap-4">
+      <Dialog open={connectionLoaded && isFolderModalOpen}>
+        <DialogContent showCloseButton={false}>
+          <DialogHeader>
+            <DialogTitle>Configure Google Drive folder</DialogTitle>
+            <DialogDescription>
+              Choose the Drive folder where your financial documents will be synced from.
+            </DialogDescription>
+          </DialogHeader>
+          <p className="rounded-md bg-muted p-3 text-xs text-muted-foreground">
+            MVP limitation: search and folder creation only work in the root directory of your Google Drive.
+          </p>
+          {foldersError && (
+            <p className="rounded-md bg-destructive/10 p-3 text-sm text-destructive">
+              {foldersError}
+            </p>
+          )}
+          <div className="flex gap-2">
+            <Input
+              value={folderSearch}
+              onChange={(event) => setFolderSearch(event.target.value)}
+              placeholder="Search root folders"
+            />
+            <Button type="button" variant="outline" onClick={() => void loadFolders()}>
+              Search
+            </Button>
+          </div>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={createFolder}
+            disabled={isCreatingFolder}
+          >
+            {isCreatingFolder ? "Creating..." : "Create folder in root"}
+          </Button>
+          <div className="max-h-72 overflow-y-auto rounded-lg border">
+            {!foldersLoaded && (
+              <p className="p-3 text-sm text-muted-foreground">Loading folders...</p>
+            )}
+            {foldersLoaded && !foldersError && folders.length === 0 && (
+              <p className="p-3 text-sm text-muted-foreground">No Drive folders found.</p>
+            )}
+            {folders.map((folder) => (
+              <button
+                key={folder.id}
+                type="button"
+                className="flex w-full items-center justify-between gap-3 border-b p-3 text-left text-sm last:border-b-0 hover:bg-muted"
+                onClick={() => {
+                  setFolderId(folder.id)
+                  setFolderName(folder.name)
+                }}
+              >
+                <span className="flex min-w-0 flex-col gap-1">
+                  <span className="truncate font-medium">{folder.name}</span>
+                  <span className="truncate text-xs text-muted-foreground">{folder.id}</span>
+                </span>
+                {folder.id === folderId && <CheckIcon className="size-4 shrink-0" />}
+              </button>
+            ))}
+          </div>
+          {folderId && (
+            <p className="text-sm text-muted-foreground">
+              Selected: {folderName || folderId}
+            </p>
+          )}
+          <DialogFooter>
+            <Button onClick={saveFolder} disabled={isSavingFolder || !folderId}>
+              {isSavingFolder ? "Saving..." : "Save folder"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <div className="flex flex-col gap-2 rounded-xl bg-card p-3 ring-1 ring-foreground/10 sm:flex-row sm:items-center">
+        <div className="min-w-0 flex-1">
+          <p className="text-xs text-muted-foreground">Google Drive folder</p>
+          <p className="truncate text-sm font-medium">
+            {folderName || folderId || "No folder configured"}
+          </p>
+        </div>
+        <div className="flex gap-2">
+          <Button onClick={() => setIsFolderModalOpen(true)} variant="outline">Edit</Button>
+          <Button onClick={syncFolder} disabled={isSyncing || !folderId}>
+            {isSyncing ? "Syncing..." : "Sync folder"}
+          </Button>
+        </div>
+      </div>
+      {message && <p className="text-sm text-muted-foreground">{message}</p>}
+
       <TransactionSummary records={records} />
 
       <TransactionFilters

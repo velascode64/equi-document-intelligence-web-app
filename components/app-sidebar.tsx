@@ -17,7 +17,6 @@ import {
 import {
   LandmarkIcon,
   BellIcon,
-  LogInIcon,
   TrendingUpIcon,
 } from "lucide-react"
 
@@ -30,9 +29,6 @@ const data = {
   navDaily: [{ title: "Performance", url: "/", icon: <TrendingUpIcon /> }],
   navNotifications: [
     { title: "Notifications", url: "/notifications", icon: <BellIcon /> },
-  ],
-  navAuth: [
-    { title: "Sign In", url: "/sign-in", icon: <LogInIcon /> },
   ],
 }
 
@@ -59,7 +55,6 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       <SidebarContent>
         <NavSecondary items={data.navNotifications} />
         <NavMain items={data.navDaily} label="Dashboard" />
-        <NavMain items={data.navAuth} label="Auth" />
       </SidebarContent>
       <SidebarFooter>
         <NavUser user={data.user} />
