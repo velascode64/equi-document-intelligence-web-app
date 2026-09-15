@@ -21,11 +21,6 @@ import {
 } from "lucide-react"
 
 const data = {
-  user: {
-    name: "Equi User",
-    email: "user@example.com",
-    avatar: "/avatars/user.jpg",
-  },
   navDaily: [{ title: "Performance", url: "/", icon: <TrendingUpIcon /> }],
   navNotifications: [
     { title: "Notifications", url: "/notifications", icon: <BellIcon /> },
@@ -33,6 +28,25 @@ const data = {
 }
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
+  const [user, setUser] = React.useState({
+    name: "Equi User",
+    email: "user@example.com",
+    avatar: "",
+  })
+
+  React.useEffect(() => {
+    void fetch("/api/profiles")
+      .then((response) => response.ok ? response.json() : null)
+      .then((data) => {
+        if (!data) return
+        setUser({
+          name: data.profile?.full_name ?? data.user?.user_metadata?.full_name ?? data.user?.user_metadata?.name ?? "Equi User",
+          email: data.profile?.email ?? data.user?.email ?? "user@example.com",
+          avatar: data.profile?.avatar_url ?? data.user?.user_metadata?.avatar_url ?? "",
+        })
+      })
+  }, [])
+
   return (
     <Sidebar variant="inset" {...props}>
       <SidebarHeader>
@@ -57,7 +71,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         <NavMain items={data.navDaily} label="Dashboard" />
       </SidebarContent>
       <SidebarFooter>
-        <NavUser user={data.user} />
+        <NavUser user={user} />
       </SidebarFooter>
     </Sidebar>
   )

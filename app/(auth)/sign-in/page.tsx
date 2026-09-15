@@ -47,7 +47,8 @@ export default function SignInPage() {
       provider: "google",
       options: {
         redirectTo: `${window.location.origin}/auth/callback`,
-        scopes: "https://www.googleapis.com/auth/drive.readonly https://www.googleapis.com/auth/drive.file",
+        scopes:
+          "openid email profile https://www.googleapis.com/auth/drive.readonly https://www.googleapis.com/auth/drive.file",
         queryParams: {
           access_type: "offline",
           prompt: "consent",
