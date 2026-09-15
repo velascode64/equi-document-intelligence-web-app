@@ -209,7 +209,7 @@ export async function syncGoogleDriveFolder(
       driveModifiedTime: file.modifiedTime,
       driveMd5Checksum: file.md5Checksum,
     })
-    if (existing?.status === "completed" && !needsProcessing) continue
+    if (existing && !needsProcessing) continue
 
     const content = await downloadGoogleDriveFile(file.id, drive)
     processed.push(

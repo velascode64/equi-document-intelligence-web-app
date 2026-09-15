@@ -5,6 +5,7 @@ import { FileTextIcon } from "lucide-react"
 import { EmptyState } from "@/components/empty-state"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import {
   Table,
   TableBody,
@@ -41,6 +42,10 @@ const moneyFormatter = (currency: string, value: number) =>
     minimumFractionDigits: value >= 1_000_000 ? 0 : 2,
     style: "currency",
   }).format(value >= 1_000_000 ? value / 1_000_000 : value) + (value >= 1_000_000 ? "M" : "")
+
+function formatStrategy(strategy: string) {
+  return strategy.length > 50 ? `${strategy.slice(0, 50)}...` : strategy
+}
 
 function statusBadge(status: DocumentStatus) {
   switch (status) {
@@ -143,7 +148,18 @@ function TableRows({
         <TableCell>{record.manager}</TableCell>
         <TableCell>{record.documentType}</TableCell>
         <TableCell>{dateFormatter.format(new Date(`${record.reportDate}T00:00:00`))}</TableCell>
-        <TableCell>{record.strategy}</TableCell>
+        <TableCell>
+          {record.strategy.length > 50 ? (
+            <Tooltip>
+              <TooltipTrigger className="block max-w-48 truncate text-left">
+                {formatStrategy(record.strategy)}
+              </TooltipTrigger>
+              <TooltipContent className="max-w-sm whitespace-normal">
+                {record.strategy}
+              </TooltipContent>
+            </Tooltip>
+          ) : record.strategy}
+        </TableCell>
         <TableCell className="text-right tabular-nums">{moneyFormatter(record.currency, record.aum)}</TableCell>
         <TableCell className="text-right tabular-nums">{moneyFormatter(record.currency, record.navOrEndingBalance)}</TableCell>
         <TableCell className="text-right font-medium tabular-nums text-emerald-600 dark:text-emerald-400">

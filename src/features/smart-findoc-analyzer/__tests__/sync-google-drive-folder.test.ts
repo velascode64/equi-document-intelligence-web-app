@@ -86,5 +86,17 @@ describe("syncGoogleDriveFolder", () => {
         since_inception: 0.097,
       }),
     ])
+
+    await syncGoogleDriveFolder(
+      {
+        userId: "user-1",
+        folderId: "folder-1",
+        credentials: { accessToken: "mock-access-token" },
+      },
+      { drive, supabase, extractPerformance }
+    )
+
+    expect(drive.files.get).toHaveBeenCalledTimes(1)
+    expect(supabase.table("notifications")).toHaveLength(2)
   })
 })
