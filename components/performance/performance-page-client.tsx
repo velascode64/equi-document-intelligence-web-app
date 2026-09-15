@@ -1,12 +1,12 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
-import { CheckIcon } from "lucide-react"
+import { CheckIcon, Loader2Icon } from "lucide-react"
 
 import type { PerformanceRecord } from "@/data/performance"
-import { TransactionSummary } from "@/components/transactions/transaction-summary"
-import { TransactionFilters } from "@/components/transactions/transaction-filters"
-import { TransactionTable } from "@/components/transactions/transaction-table"
+import { TransactionSummary } from "@/components/performance/transaction-summary"
+import { TransactionFilters } from "@/components/performance/transaction-filters"
+import { PerformanceTable } from "@/components/performance/performance-table"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -23,7 +23,7 @@ type DriveFolder = {
   name: string
 }
 
-export function TransactionsPageClient() {
+export function PerformancePageClient() {
   const [performanceRecords, setPerformanceRecords] = useState<PerformanceRecord[]>([])
   const [folderId, setFolderId] = useState("")
   const [folderName, setFolderName] = useState("")
@@ -37,6 +37,8 @@ export function TransactionsPageClient() {
   const [isFolderModalOpen, setIsFolderModalOpen] = useState(false)
   const [isSavingFolder, setIsSavingFolder] = useState(false)
   const [isSyncing, setIsSyncing] = useState(false)
+  const [syncStep, setSyncStep] = useState<string | null>(null)
+  const [toast, setToast] = useState<{ type: "success" | "error"; message: string } | null>(null)
   const [message, setMessage] = useState<string | null>(null)
   const [search, setSearch] = useState("")
   const [fundFilter, setFundFilter] = useState("all")
@@ -46,7 +48,11 @@ export function TransactionsPageClient() {
 
   async function loadPerformance() {
     const response = await fetch("/api/smart-findoc-analyzer/financial-performance")
-    if (!response.ok) return
+    if (!response.ok) {
+      const data = await response.json().catch(() => ({}))
+      setToast({ type: "error", message: data.error ?? "Could not load performance records." })
+      return
+    }
     const data = await response.json()
     setPerformanceRecords(data.performance ?? [])
   }
@@ -124,12 +130,20 @@ export function TransactionsPageClient() {
 
   async function syncFolder() {
     setIsSyncing(true)
+    setSyncStep("Reading folder")
     setMessage(null)
+    setToast(null)
+    window.setTimeout(() => setSyncStep("Finding files"), 400)
+    window.setTimeout(() => setSyncStep("Processing files"), 1200)
     const response = await fetch("/api/smart-findoc-analyzer/sync", { method: "POST" })
     const data = await response.json().catch(() => ({}))
-    setIsSyncing(false)
-    setMessage(response.ok ? `Synced ${data.processed ?? 0} document(s).` : data.error ?? "Sync failed.")
+    setSyncStep("Refreshing dashboard")
     await loadPerformance()
+    setIsSyncing(false)
+    setSyncStep(null)
+    const syncMessage = response.ok ? `Synced ${data.processed ?? 0} document(s).` : data.error ?? "Sync failed."
+    setMessage(syncMessage)
+    setToast({ type: response.ok ? "success" : "error", message: syncMessage })
   }
 
   useEffect(() => {
@@ -140,13 +154,13 @@ export function TransactionsPageClient() {
 
   const funds = useMemo(() => {
     return Array.from(new Set(performanceRecords.map((record) => record.fund))).sort()
-  }, [])
+  }, [performanceRecords])
 
   const reportDates = useMemo(() => {
     return Array.from(new Set(performanceRecords.map((record) => record.reportDate))).sort(
       (a, b) => b.localeCompare(a)
     )
-  }, [])
+  }, [performanceRecords])
 
   const records = useMemo(() => {
     let data = performanceRecords
@@ -173,10 +187,22 @@ export function TransactionsPageClient() {
         ? b.ytdReturn - a.ytdReturn
         : a.ytdReturn - b.ytdReturn
     )
-  }, [dateFilter, fundFilter, search, sort])
+  }, [dateFilter, fundFilter, performanceRecords, search, sort])
 
   return (
     <div className="flex flex-col gap-4">
+      {toast && (
+        <div
+          className={`fixed right-4 top-4 z-50 rounded-lg px-4 py-3 text-sm shadow-lg ${
+            toast.type === "error"
+              ? "bg-destructive text-destructive-foreground"
+              : "bg-foreground text-background"
+          }`}
+        >
+          {toast.message}
+        </div>
+      )}
+
       <Dialog open={connectionLoaded && isFolderModalOpen}>
         <DialogContent showCloseButton={false}>
           <DialogHeader>
@@ -259,10 +285,23 @@ export function TransactionsPageClient() {
         <div className="flex gap-2">
           <Button onClick={() => setIsFolderModalOpen(true)} variant="outline">Edit</Button>
           <Button onClick={syncFolder} disabled={isSyncing || !folderId}>
-            {isSyncing ? "Syncing..." : "Sync folder"}
+            {isSyncing ? (
+              <>
+                <Loader2Icon className="size-4 animate-spin" />
+                Syncing...
+              </>
+            ) : (
+              "Sync folder"
+            )}
           </Button>
         </div>
       </div>
+      {isSyncing && (
+        <div className="flex items-center gap-2 rounded-xl bg-muted p-3 text-sm text-muted-foreground">
+          <Loader2Icon className="size-4 animate-spin" />
+          <span>{syncStep ?? "Syncing folder"}</span>
+        </div>
+      )}
       {message && <p className="text-sm text-muted-foreground">{message}</p>}
 
       <TransactionSummary records={records} />
@@ -280,7 +319,7 @@ export function TransactionsPageClient() {
         reportDates={reportDates}
       />
 
-      <TransactionTable
+      <PerformanceTable
         records={records}
         expandedId={expandedId}
         setExpandedId={setExpandedId}
