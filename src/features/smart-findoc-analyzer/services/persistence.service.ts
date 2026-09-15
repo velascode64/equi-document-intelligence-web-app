@@ -158,5 +158,5 @@ export function shouldProcessDriveDocument(
   if (!existing) return true
   if (incoming.driveMd5Checksum && existing.drive_md5_checksum !== incoming.driveMd5Checksum) return true
   if (incoming.driveModifiedTime && existing.drive_modified_time !== incoming.driveModifiedTime) return true
-  return !incoming.driveMd5Checksum && !incoming.driveModifiedTime
+  return false
 }
