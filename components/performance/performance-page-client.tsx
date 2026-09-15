@@ -146,11 +146,26 @@ export function PerformancePageClient() {
     setToast({ type: response.ok ? "success" : "error", message: syncMessage })
   }
 
+  async function pollForNewFiles() {
+    const response = await fetch("/api/smart-findoc-analyzer/sync", { method: "POST" })
+    if (!response.ok) return
+    const data = await response.json().catch(() => ({}))
+    if ((data.processed ?? 0) > 0) await loadPerformance()
+  }
+
   useEffect(() => {
     void loadConnection()
     void loadPerformance()
     void loadFolders()
   }, [])
+
+  useEffect(() => {
+    if (!hasFolderConfigured) return
+    const interval = window.setInterval(() => {
+      if (!isSyncing) void pollForNewFiles()
+    }, 30000)
+    return () => window.clearInterval(interval)
+  }, [hasFolderConfigured, isSyncing])
 
   const funds = useMemo(() => {
     return Array.from(new Set(performanceRecords.map((record) => record.fund))).sort()

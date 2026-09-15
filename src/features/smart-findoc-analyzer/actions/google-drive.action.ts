@@ -51,12 +51,16 @@ type DriveFile = {
   id?: string | null
   name?: string | null
   mimeType?: string | null
+  modifiedTime?: string | null
+  md5Checksum?: string | null
 }
 
 export type SupportedDriveDocument = {
   id: string
   name: string
   mimeType: SupportedMimeType
+  modifiedTime: string | null
+  md5Checksum: string | null
 }
 
 export type GoogleDriveFolder = {
@@ -78,14 +82,20 @@ export async function listGoogleDriveFolderDocuments(
       q: `'${input.folderId}' in parents and trashed = false and (${supportedDriveMimeTypes
         .map((mimeType) => `mimeType = '${mimeType}'`)
         .join(" or ")})`,
-      fields: "nextPageToken, files(id, name, mimeType)",
+      fields: "nextPageToken, files(id, name, mimeType, modifiedTime, md5Checksum)",
       pageSize: 100,
       pageToken,
     })
 
     for (const file of response.data.files ?? []) {
       if (!file.id || !file.name || !isSupportedMimeType(file.mimeType)) continue
-      documents.push({ id: file.id, name: file.name, mimeType: file.mimeType })
+      documents.push({
+        id: file.id,
+        name: file.name,
+        mimeType: file.mimeType,
+        modifiedTime: file.modifiedTime ?? null,
+        md5Checksum: file.md5Checksum ?? null,
+      })
     }
 
     pageToken = response.data.nextPageToken || undefined

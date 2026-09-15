@@ -18,12 +18,16 @@ import {
   replaceFinancialPerformanceForDocument,
   toFinancialPerformanceRows,
 } from "./financial-performance.service"
+import { findDocumentByDriveFileId, shouldProcessDriveDocument } from "./persistence.service"
 import type { PartialOAuthCredentials } from "@/src/provider/google.provider"
 import { createNotification } from "@/src/features/notifications"
 
 export type ProcessDocumentInput = DocumentContent & {
   userId: string
   driveFileId: string
+  driveModifiedTime?: string | null
+  driveMd5Checksum?: string | null
+  existingDocumentId?: string
 }
 
 export type SupabaseClientLike = {
@@ -96,7 +100,8 @@ export async function processDocument(
   const supabase = dependencies.supabase ?? (createBackendSupabaseClient() as unknown as SupabaseClientLike)
   const id = dependencies.id ?? crypto.randomUUID
   const now = dependencies.now ?? (() => new Date().toISOString())
-  const documentId = id()
+  // reuse the existing row's id on re-sync so it doesn't move the primary key referenced by financial_performance
+  const documentId = input.existingDocumentId ?? id()
 
   const document = await createDocument(supabase, {
     id: documentId,
@@ -104,6 +109,8 @@ export async function processDocument(
     drive_file_id: input.driveFileId,
     name: input.filename,
     mime_type: input.mimeType,
+    drive_modified_time: input.driveModifiedTime ?? null,
+    drive_md5_checksum: input.driveMd5Checksum ?? null,
     status: "processing",
   })
   const persistedDocumentId = (document as { id: string }).id
@@ -187,10 +194,23 @@ export async function syncGoogleDriveFolder(
   input: SyncGoogleDriveFolderInput,
   dependencies: AnalyzerDependencies = {}
 ): Promise<SyncGoogleDriveFolderResult> {
+  const supabase = dependencies.supabase ?? (createBackendSupabaseClient() as unknown as SupabaseClientLike)
   const drive = dependencies.drive ?? getGoogleDriveActionClient(input.credentials)
   const processed: ProcessDocumentResult[] = []
 
   for (const file of await listGoogleDriveFolderDocuments(input, drive)) {
+    const existing = await findDocumentByDriveFileId(
+      supabase as unknown as Parameters<typeof findDocumentByDriveFileId>[0],
+      input.userId,
+      file.id
+    )
+
+    const needsProcessing = shouldProcessDriveDocument(existing, {
+      driveModifiedTime: file.modifiedTime,
+      driveMd5Checksum: file.md5Checksum,
+    })
+    if (existing?.status === "completed" && !needsProcessing) continue
+
     const content = await downloadGoogleDriveFile(file.id, drive)
     processed.push(
       await processDocument(
@@ -200,8 +220,11 @@ export async function syncGoogleDriveFolder(
           filename: file.name,
           mimeType: file.mimeType,
           content,
+          driveModifiedTime: file.modifiedTime,
+          driveMd5Checksum: file.md5Checksum,
+          existingDocumentId: existing?.id,
         },
-        dependencies
+        { ...dependencies, supabase }
       )
     )
   }
