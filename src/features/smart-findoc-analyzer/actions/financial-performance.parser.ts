@@ -3,7 +3,6 @@ import type { DocumentContent, ParsedDocument, SupportedMimeType } from "../sche
 import { cleanDocumentText } from "@/src/utils/document-text"
 
 const supportedTypes = new Set<SupportedMimeType>(["application/pdf", "text/html", "text/csv"])
-const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 const model = process.env.ANTHROPIC_MODEL || "claude-sonnet-4-6"
 const nullableString = { type: ["string", "null"] as const }
 const nullableNumber = { type: ["number", "null"] as const }
@@ -36,8 +35,12 @@ export type LLMDocumentAnalysisResponse = {
 export function parseDocumentContent(input: DocumentContent): ParsedDocument {
   if (!supportedTypes.has(input.mimeType)) throw new Error(`Unsupported document type: ${input.mimeType}`)
   const raw = Buffer.isBuffer(input.content) ? input.content.toString("utf8") : input.content
-  const text = input.mimeType === "text/html" ? cleanDocumentText(raw) : raw.trim()
-  if (!text) throw new Error(`Document is empty: ${input.filename}`)
+  const text = input.mimeType === "application/pdf"
+    ? ""
+    : input.mimeType === "text/html"
+      ? cleanDocumentText(raw)
+      : raw.trim()
+  if (!text && input.mimeType !== "application/pdf") throw new Error(`Document is empty: ${input.filename}`)
   return { filename: input.filename, mimeType: input.mimeType, text }
 }
 
@@ -99,12 +102,27 @@ Use the extract_document_analysis tool. The document may be a fund factsheet, ac
 
 Each performance item is one table row with fund, manager, documentType, reportingDate, strategy, aum, nav, endingBalance, ytdReturn, and sinceInception.
 
-Normalization rules: fund is the normalized fund name; manager is the asset/investment manager; documentType is fund_factsheet, account_statement, or performance_report; reportingDate is ISO YYYY-MM-DD; aum, nav, and endingBalance are numeric monetary values without symbols or magnitude suffixes ("$850M" is 850000000); and ytdReturn and sinceInception are decimal percentages ("7.6%" is 0.076). Use endingBalance for account statements and nav for fund reports when applicable. Use null when a field is absent or not reliably extractable. Never guess.
+If the document does not contain fund/account performance data, return performance: [].
 
-DOCUMENT CONTENT:\n${text}`
+Field rules:
+- fund: normalized fund/account name.
+- manager: explicitly identified investment, fund, asset, or portfolio manager. Do not use distributor, sponsor, issuer, brand, or product family unless the document explicitly identifies it as manager.
+- documentType: fund_factsheet, account_statement, or performance_report.
+- reportingDate: date represented by the document/data in ISO YYYY-MM-DD.
+- strategy: investment strategy or fund category stated or clearly described by the document.
+- aum: total assets under management / net assets of the specific fund, ETF, share class, or account represented by the document. Do not use parent-company, issuer-wide, or broader fund-family assets.
+- nav: current monetary Net Asset Value per share/unit only. Do not interpret "NAV return", "NAV performance", or any percentage as nav.
+- endingBalance: ending account balance for account statements only; otherwise null unless a balance is explicitly reported.
+- ytdReturn: year-to-date fund return for the reporting year. Prefer NAV return when both NAV and market-price returns are presented. Do not substitute calendar-year, trailing 1-year, benchmark, index, or market-price return when YTD fund/NAV return is absent.
+- sinceInception: fund/account since-inception return. Prefer NAV return when multiple return types are presented. Do not use benchmark/index since-inception return.
+
+Normalization rules: monetary values are numeric values without symbols or magnitude suffixes ("$850M" is 850000000); returns are decimal percentages ("7.6%" is 0.076); use null when a field is absent or not reliably extractable. Never guess or infer from unrelated numbers.${
+    text ? `\n\nDOCUMENT CONTENT:\n${text}` : ""
+  }`
 }
 
 export async function extractFinancialPerformance(document: DocumentForLLM): Promise<LLMDocumentAnalysisResponse> {
+  const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
   const prompt = createFinancialDocumentPrompt(document.filename, document.text)
 
   const response = await anthropic.messages.create({
