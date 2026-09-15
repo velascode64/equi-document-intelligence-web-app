@@ -16,7 +16,7 @@ import {
 import type { DocumentStatus, PerformanceRecord } from "@/data/performance"
 import { cn } from "@/lib/utils"
 
-interface TransactionTableProps {
+interface PerformanceTableProps {
   records: PerformanceRecord[]
   expandedId: string | null
   setExpandedId: (id: string | null) => void
@@ -66,11 +66,11 @@ function mockSourceHref(record: PerformanceRecord) {
   return `data:text/plain;charset=utf-8,${encodeURIComponent(content)}`
 }
 
-export function TransactionTable({
+export function PerformanceTable({
   records,
   expandedId,
   setExpandedId,
-}: TransactionTableProps) {
+}: PerformanceTableProps) {
   return (
     <div className="overflow-hidden rounded-xl ring-1 ring-foreground/10">
       <div className="overflow-x-auto">
@@ -166,7 +166,7 @@ function TableRows({
             variant="ghost"
           >
             <FileTextIcon className="size-3.5" />
-            Open source
+            {record.documentName}
           </Button>
         </TableCell>
       </TableRow>

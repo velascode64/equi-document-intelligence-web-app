@@ -9,7 +9,10 @@ export type PartialOAuthCredentials = {
   expiresAt?: number
 }
 
-export const GOOGLE_DRIVE_SCOPES = ["https://www.googleapis.com/auth/drive.readonly"]
+export const GOOGLE_DRIVE_SCOPES = [
+  "https://www.googleapis.com/auth/drive.readonly",
+  "https://www.googleapis.com/auth/drive.file",
+]
 
 export function getOAuth2Client(credentials?: PartialOAuthCredentials) {
   const clientId = credentials?.clientId || process.env.GOOGLE_CLIENT_ID

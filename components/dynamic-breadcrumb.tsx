@@ -21,7 +21,7 @@ const labelMap: Record<string, string> = {
   analytics: "Analytics",
   investments: "Investments",
   budgets: "Budgets",
-  account: "Account",
+  profile: "Profile",
   notifications: "Notifications",
   "sign-in": "Sign In",
   "sign-up": "Sign Up",

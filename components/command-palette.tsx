@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
-import { BellIcon, LogInIcon, MonitorIcon, MoonIcon, SunIcon, TrendingUpIcon, UserIcon } from "lucide-react"
+import { BellIcon, MonitorIcon, MoonIcon, SunIcon, TrendingUpIcon, UserIcon } from "lucide-react"
 import { useTheme } from "next-themes"
 
 import {
@@ -19,8 +19,7 @@ import {
 const pages = [
   { label: "Performance", icon: TrendingUpIcon, href: "/" },
   { label: "Notifications", icon: BellIcon, href: "/notifications" },
-  { label: "Account", icon: UserIcon, href: "/account" },
-  { label: "Sign In", icon: LogInIcon, href: "/sign-in" },
+  { label: "Profile", icon: UserIcon, href: "/profile" },
 ]
 
 export function CommandPalette() {

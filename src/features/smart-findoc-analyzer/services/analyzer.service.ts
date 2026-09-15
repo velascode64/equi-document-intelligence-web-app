@@ -15,10 +15,11 @@ import {
   type DriveClientLike,
 } from "../actions/google-drive.action"
 import {
-  createFinancialPerformanceRows,
+  replaceFinancialPerformanceForDocument,
   toFinancialPerformanceRows,
 } from "./financial-performance.service"
 import type { PartialOAuthCredentials } from "@/src/provider/google.provider"
+import { createNotification } from "@/src/features/notifications"
 
 export type ProcessDocumentInput = DocumentContent & {
   userId: string
@@ -31,6 +32,7 @@ export type SupabaseClientLike = {
 
 type SupabaseQueryLike = {
   insert(values: unknown): SupabaseQueryResultLike
+  upsert(values: unknown, options?: unknown): SupabaseQueryResultLike
   update(values: unknown): SupabaseQueryFilterLike
 }
 
@@ -104,12 +106,21 @@ export async function processDocument(
     mime_type: input.mimeType,
     status: "processing",
   })
+  const persistedDocumentId = (document as { id: string }).id
+
+  await notifyDocumentEvent(supabase, {
+    userId: input.userId,
+    type: "document_processing_started",
+    title: "Processing document",
+    message: `${input.filename} is being processed.`,
+    documentId: persistedDocumentId,
+  })
 
   try {
     const parsed = parseDocumentContent(input)
     const extraction = extractionSchema.parse(
       await (dependencies.extractPerformance ?? extractFinancialPerformance)({
-        id: documentId,
+        id: persistedDocumentId,
         filename: parsed.filename,
         mimeType: parsed.mimeType as SupportedMimeType,
         text: parsed.text,
@@ -119,23 +130,56 @@ export async function processDocument(
       })
     )
 
-    await createFinancialPerformanceRows(
+    await replaceFinancialPerformanceForDocument(
       supabase,
-      toFinancialPerformanceRows(documentId, extraction.performance)
+      persistedDocumentId,
+      toFinancialPerformanceRows(persistedDocumentId, extraction.performance)
     )
-    const completed = await updateDocument(supabase, documentId, {
+    const completed = await updateDocument(supabase, persistedDocumentId, {
       status: "completed",
       raw_extraction: extraction satisfies LLMDocumentAnalysisResponse,
       processed_at: now(),
     })
 
+    await notifyDocumentEvent(supabase, {
+      userId: input.userId,
+      type: "document_processing_completed",
+      title: "Document processed",
+      message: `${input.filename} was processed successfully and its extracted data is now available.`,
+      documentId: persistedDocumentId,
+    })
+
     return { document: completed ?? document, performance: extraction.performance }
   } catch (error) {
-    await updateDocument(supabase, documentId, {
+    await updateDocument(supabase, persistedDocumentId, {
       status: "failed",
       extraction_error: error instanceof Error ? error.message : String(error),
     })
+    await notifyDocumentEvent(supabase, {
+      userId: input.userId,
+      type: "document_processing_failed",
+      title: "Document processing failed",
+      message: `${input.filename} could not be processed.`,
+      documentId: persistedDocumentId,
+    })
     throw error
+  }
+}
+
+async function notifyDocumentEvent(
+  supabase: SupabaseClientLike,
+  input: { userId: string; type: string; title: string; message: string; documentId: string }
+) {
+  try {
+    await createNotification(supabase as unknown as Parameters<typeof createNotification>[0], {
+      userId: input.userId,
+      type: input.type,
+      title: input.title,
+      message: input.message,
+      metadata: { documentId: input.documentId },
+    })
+  } catch (error) {
+    console.error("[analyzer.service] Failed to create notification:", error)
   }
 }
 
@@ -166,7 +210,11 @@ export async function syncGoogleDriveFolder(
 }
 
 async function createDocument(supabase: SupabaseClientLike, values: unknown) {
-  const { data, error } = await supabase.from("documents").insert(values).select("*").single()
+  const { data, error } = await supabase
+    .from("documents")
+    .upsert(values, { onConflict: "user_id,drive_file_id" })
+    .select("*")
+    .single()
   if (error) throw new Error(error.message)
   return data
 }

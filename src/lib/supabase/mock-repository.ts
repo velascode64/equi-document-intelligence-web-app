@@ -11,6 +11,7 @@ export class MockSupabaseClient implements SupabaseClientLike {
 
     return {
       insert: (values: unknown) => new MockResult(rows, Array.isArray(values) ? values : [values]),
+      upsert: (values: unknown) => new MockResult(rows, Array.isArray(values) ? values : [values], true),
       delete: () => ({
         eq: (column: string, value: unknown) => {
           const deleted = rows.filter((row) => isRecord(row) && row[column] === value)
@@ -35,7 +36,7 @@ export class MockSupabaseClient implements SupabaseClientLike {
 }
 
 class MockResult {
-  constructor(private readonly table: unknown[], private readonly data: unknown[]) {}
+  constructor(private readonly table: unknown[], private readonly data: unknown[], private readonly replace = false) {}
 
   then<TResult1 = SupabaseResponse, TResult2 = never>(
     onfulfilled?: ((value: SupabaseResponse) => TResult1 | PromiseLike<TResult1>) | null,
@@ -55,6 +56,10 @@ class MockResult {
 
   private async run(): Promise<SupabaseResponse> {
     for (const row of this.data) {
+      if (this.replace && isRecord(row)) {
+        const index = this.table.findIndex((item) => isSameRecord(item, row))
+        if (index >= 0) this.table.splice(index, 1)
+      }
       if (!this.table.includes(row)) this.table.push(row)
     }
     return { data: this.data, error: null }
@@ -63,4 +68,13 @@ class MockResult {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null
+}
+
+function isSameRecord(left: unknown, right: Record<string, unknown>) {
+  if (!isRecord(left)) return false
+  if (left.id && right.id) return left.id === right.id
+  if (left.user_id && left.drive_file_id && right.user_id && right.drive_file_id) {
+    return left.user_id === right.user_id && left.drive_file_id === right.drive_file_id
+  }
+  return false
 }

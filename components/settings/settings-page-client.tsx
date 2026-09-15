@@ -1,9 +1,9 @@
 "use client"
 
 import * as React from "react"
-import { useSearchParams } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 import { useTheme } from "next-themes"
-import { CheckIcon, LoaderIcon, MoonIcon, MonitorIcon, PaletteIcon, SunIcon, UserIcon } from "lucide-react"
+import { CheckIcon, LoaderIcon, LogOutIcon, MoonIcon, MonitorIcon, PaletteIcon, SunIcon, UserIcon } from "lucide-react"
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { cn } from "@/lib/utils"
+import { createBrowserSupabaseClient } from "@/src/lib/supabase/browser-client"
 
 type TabId = "profile" | "appearance"
 
@@ -27,13 +28,39 @@ const tabs: { id: TabId; label: string; icon: React.ReactNode }[] = [
 const subscribeToNothing = () => () => {}
 
 function ProfileTab() {
+  const router = useRouter()
   const [saving, setSaving] = React.useState(false)
+  const [loggingOut, setLoggingOut] = React.useState(false)
   const [name, setName] = React.useState("Equi User")
   const [email, setEmail] = React.useState("user@example.com")
+  const [avatarUrl, setAvatarUrl] = React.useState("")
 
-  function handleSave() {
+  React.useEffect(() => {
+    void fetch("/api/profiles")
+      .then((response) => response.ok ? response.json() : null)
+      .then((data) => {
+        if (!data) return
+        setName(data.profile?.full_name ?? data.user?.user_metadata?.full_name ?? "Equi User")
+        setEmail(data.profile?.email ?? data.user?.email ?? "user@example.com")
+        setAvatarUrl(data.profile?.avatar_url ?? data.user?.user_metadata?.avatar_url ?? "")
+      })
+  }, [])
+
+  async function handleSave() {
     setSaving(true)
-    setTimeout(() => setSaving(false), 1200)
+    await fetch("/api/profiles", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ fullName: name, email }),
+    })
+    setSaving(false)
+  }
+
+  async function handleLogout() {
+    setLoggingOut(true)
+    await createBrowserSupabaseClient().auth.signOut()
+    router.push("/sign-in")
+    router.refresh()
   }
 
   return (
@@ -45,8 +72,8 @@ function ProfileTab() {
       <CardContent className="space-y-6">
         <div className="flex items-center gap-4">
           <Avatar className="size-16">
-            <AvatarImage src="/avatars/user.jpg" alt="User avatar" />
-            <AvatarFallback className="text-lg">EU</AvatarFallback>
+            <AvatarImage src={avatarUrl} alt={name} />
+            <AvatarFallback className="text-lg">{getInitials(name || email)}</AvatarFallback>
           </Avatar>
           <div>
             <p className="font-medium">{name}</p>
@@ -65,7 +92,11 @@ function ProfileTab() {
           </div>
         </div>
 
-        <div className="flex justify-end">
+        <div className="flex justify-end gap-2">
+          <Button variant="outline" onClick={handleLogout} disabled={loggingOut}>
+            {loggingOut ? <LoaderIcon className="size-4 animate-spin" /> : <LogOutIcon className="size-4" />}
+            {loggingOut ? "Logging out..." : "Log out"}
+          </Button>
           <Button onClick={handleSave} disabled={saving}>
             {saving && <LoaderIcon className="size-4 animate-spin" />}
             {saving ? "Saving..." : "Save Changes"}
@@ -74,6 +105,15 @@ function ProfileTab() {
       </CardContent>
     </Card>
   )
+}
+
+function getInitials(value: string) {
+  const parts = value
+    .replace(/@.*/, "")
+    .split(/\s+/)
+    .filter(Boolean)
+
+  return (parts[0]?.[0] ?? "U") + (parts[1]?.[0] ?? "")
 }
 
 function AppearanceTab() {

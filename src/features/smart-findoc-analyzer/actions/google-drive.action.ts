@@ -36,6 +36,14 @@ export type DriveClientLike = {
       params: { fileId: string; alt: "media" },
       options: { responseType: "arraybuffer" }
     ): Promise<{ data: ArrayBuffer | Buffer | string }>
+    create?(params: {
+      requestBody: {
+        name: string
+        mimeType: "application/vnd.google-apps.folder"
+        parents: ["root"]
+      }
+      fields: "id, name"
+    }): Promise<{ data: DriveFile }>
   }
 }
 
@@ -49,6 +57,11 @@ export type SupportedDriveDocument = {
   id: string
   name: string
   mimeType: SupportedMimeType
+}
+
+export type GoogleDriveFolder = {
+  id: string
+  name: string
 }
 
 const supportedDriveMimeTypes: SupportedMimeType[] = ["application/pdf", "text/html", "text/csv"]
@@ -81,6 +94,59 @@ export async function listGoogleDriveFolderDocuments(
   return documents
 }
 
+export async function listGoogleDriveFolders(
+  credentials: PartialOAuthCredentials,
+  search?: string,
+  drive: DriveClientLike = getDriveClient(credentials) as unknown as DriveClientLike
+): Promise<GoogleDriveFolder[]> {
+  const folders: GoogleDriveFolder[] = []
+  let pageToken: string | undefined
+  const searchQuery = search ? ` and name contains '${escapeDriveQuery(search)}'` : ""
+
+  do {
+    const response = await drive.files.list({
+      q: `'root' in parents and mimeType = 'application/vnd.google-apps.folder' and trashed = false${searchQuery}`,
+      fields: "nextPageToken, files(id, name)",
+      pageSize: 100,
+      pageToken,
+    })
+
+    for (const folder of response.data.files ?? []) {
+      if (!folder.id || !folder.name) continue
+      folders.push({ id: folder.id, name: folder.name })
+    }
+
+    pageToken = response.data.nextPageToken || undefined
+  } while (pageToken)
+
+  return folders.sort((a, b) => a.name.localeCompare(b.name))
+}
+
+export async function createGoogleDriveRootFolder(
+  credentials: PartialOAuthCredentials,
+  name: string,
+  drive: DriveClientLike = getDriveClient(credentials) as unknown as DriveClientLike
+): Promise<GoogleDriveFolder> {
+  if (!drive.files.create) {
+    throw new Error("Google Drive client cannot create folders")
+  }
+
+  const response = await drive.files.create({
+    requestBody: {
+      name,
+      mimeType: "application/vnd.google-apps.folder",
+      parents: ["root"],
+    },
+    fields: "id, name",
+  })
+
+  if (!response.data.id || !response.data.name) {
+    throw new Error("Google Drive did not return the created folder")
+  }
+
+  return { id: response.data.id, name: response.data.name }
+}
+
 export async function downloadGoogleDriveFile(
   fileId: string,
   drive: DriveClientLike
@@ -93,4 +159,8 @@ export async function downloadGoogleDriveFile(
 
 function isSupportedMimeType(mimeType: string | null | undefined): mimeType is SupportedMimeType {
   return supportedDriveMimeTypes.includes(mimeType as SupportedMimeType)
+}
+
+function escapeDriveQuery(value: string) {
+  return value.replace(/\\/g, "\\\\").replace(/'/g, "\\'")
 }

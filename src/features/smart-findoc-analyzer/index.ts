@@ -8,8 +8,10 @@ export type {
 export {
   completeGoogleDriveConnection,
   connectGoogleDrive,
+  createGoogleDriveRootFolder,
   downloadGoogleDriveFile,
   listGoogleDriveFolderDocuments,
+  listGoogleDriveFolders,
 } from "./actions/google-drive.action"
 export {
   findDocumentByDriveFileId,

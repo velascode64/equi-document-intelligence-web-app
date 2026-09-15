@@ -1,6 +1,7 @@
 "use client"
 
 import Link from "next/link"
+import { useRouter } from "next/navigation"
 import {
   Avatar,
   AvatarFallback,
@@ -22,6 +23,7 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar"
 import { ChevronsUpDownIcon, SparklesIcon, BadgeCheckIcon, LogOutIcon } from "lucide-react"
+import { createBrowserSupabaseClient } from "@/src/lib/supabase/browser-client"
 
 export function NavUser({
   user,
@@ -33,6 +35,14 @@ export function NavUser({
   }
 }) {
   const { isMobile } = useSidebar()
+  const router = useRouter()
+  const initials = getInitials(user.name || user.email)
+
+  async function handleLogout() {
+    await createBrowserSupabaseClient().auth.signOut()
+    router.push("/sign-in")
+    router.refresh()
+  }
 
   return (
     <SidebarMenu>
@@ -42,10 +52,10 @@ export function NavUser({
             render={
               <SidebarMenuButton size="lg" className="aria-expanded:bg-muted" />
             }
-          >
+            >
             <Avatar>
               <AvatarImage src={user.avatar} alt={user.name} />
-              <AvatarFallback>AG</AvatarFallback>
+              <AvatarFallback>{initials}</AvatarFallback>
             </Avatar>
             <div className="grid flex-1 text-left text-sm leading-tight">
               <span className="truncate font-medium">{user.name}</span>
@@ -64,7 +74,7 @@ export function NavUser({
                 <div className="flex items-center gap-2 px-1 py-1.5 text-left text-sm">
                   <Avatar>
                     <AvatarImage src={user.avatar} alt={user.name} />
-                    <AvatarFallback>AG</AvatarFallback>
+                    <AvatarFallback>{initials}</AvatarFallback>
                   </Avatar>
                   <div className="grid flex-1 text-left text-sm leading-tight">
                     <span className="truncate font-medium">{user.name}</span>
@@ -83,14 +93,14 @@ export function NavUser({
             </DropdownMenuGroup>
             <DropdownMenuSeparator />
             <DropdownMenuGroup>
-              <DropdownMenuItem render={<Link href="/account" />}>
+              <DropdownMenuItem render={<Link href="/profile" />}>
                 <BadgeCheckIcon
                 />
-                Account
+                Profile
               </DropdownMenuItem>
             </DropdownMenuGroup>
             <DropdownMenuSeparator />
-            <DropdownMenuItem render={<Link href="/sign-in" />}>
+            <DropdownMenuItem onClick={handleLogout}>
               <LogOutIcon
               />
               Log out
@@ -100,4 +110,13 @@ export function NavUser({
       </SidebarMenuItem>
     </SidebarMenu>
   )
+}
+
+function getInitials(value: string) {
+  const parts = value
+    .replace(/@.*/, "")
+    .split(/\s+/)
+    .filter(Boolean)
+
+  return (parts[0]?.[0] ?? "U") + (parts[1]?.[0] ?? "")
 }
