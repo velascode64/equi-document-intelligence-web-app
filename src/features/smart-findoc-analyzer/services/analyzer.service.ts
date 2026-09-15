@@ -19,6 +19,7 @@ import {
   toFinancialPerformanceRows,
 } from "./financial-performance.service"
 import type { PartialOAuthCredentials } from "@/src/provider/google.provider"
+import { createNotification } from "@/src/features/notifications"
 
 export type ProcessDocumentInput = DocumentContent & {
   userId: string
@@ -107,6 +108,14 @@ export async function processDocument(
   })
   const persistedDocumentId = (document as { id: string }).id
 
+  await notifyDocumentEvent(supabase, {
+    userId: input.userId,
+    type: "document_processing_started",
+    title: "Processing document",
+    message: `${input.filename} is being processed.`,
+    documentId: persistedDocumentId,
+  })
+
   try {
     const parsed = parseDocumentContent(input)
     const extraction = extractionSchema.parse(
@@ -132,13 +141,45 @@ export async function processDocument(
       processed_at: now(),
     })
 
+    await notifyDocumentEvent(supabase, {
+      userId: input.userId,
+      type: "document_processing_completed",
+      title: "Document processed",
+      message: `${input.filename} was processed successfully and its extracted data is now available.`,
+      documentId: persistedDocumentId,
+    })
+
     return { document: completed ?? document, performance: extraction.performance }
   } catch (error) {
     await updateDocument(supabase, persistedDocumentId, {
       status: "failed",
       extraction_error: error instanceof Error ? error.message : String(error),
     })
+    await notifyDocumentEvent(supabase, {
+      userId: input.userId,
+      type: "document_processing_failed",
+      title: "Document processing failed",
+      message: `${input.filename} could not be processed.`,
+      documentId: persistedDocumentId,
+    })
     throw error
+  }
+}
+
+async function notifyDocumentEvent(
+  supabase: SupabaseClientLike,
+  input: { userId: string; type: string; title: string; message: string; documentId: string }
+) {
+  try {
+    await createNotification(supabase as unknown as Parameters<typeof createNotification>[0], {
+      userId: input.userId,
+      type: input.type,
+      title: input.title,
+      message: input.message,
+      metadata: { documentId: input.documentId },
+    })
+  } catch (error) {
+    console.error("[analyzer.service] Failed to create notification:", error)
   }
 }
 
