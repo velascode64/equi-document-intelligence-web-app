@@ -92,3 +92,52 @@ function performanceFromRawExtraction(documents: any[]) {
     }))
   )
 }
+
+export async function DELETE(request: NextRequest) {
+  try {
+    const { user } = await requireUser()
+    const supabase = createBackendSupabaseClient()
+    const body = await request.json().catch(() => ({}))
+    const ids = Array.isArray(body.ids) ? body.ids.filter((id: unknown) => typeof id === "string") : []
+
+    if (!ids.length) {
+      return NextResponse.json({ error: "No record ids provided" }, { status: 400 })
+    }
+
+    const { data: rows, error: rowsError } = await supabase
+      .from("financial_performance")
+      .select("id, document_id")
+      .in("id", ids)
+
+    if (rowsError) throw new Error(rowsError.message)
+
+    const documentIds = Array.from(new Set((rows ?? []).map((row: any) => row.document_id)))
+    if (!documentIds.length) return NextResponse.json({ deleted: 0 })
+
+    const { data: ownedDocuments, error: documentsError } = await supabase
+      .from("documents")
+      .select("id")
+      .eq("user_id", user.id)
+      .in("id", documentIds)
+
+    if (documentsError) throw new Error(documentsError.message)
+
+    const ownedDocumentIds = new Set((ownedDocuments ?? []).map((document: any) => document.id))
+    const deletableIds = (rows ?? [])
+      .filter((row: any) => ownedDocumentIds.has(row.document_id))
+      .map((row: any) => row.id)
+
+    if (!deletableIds.length) return NextResponse.json({ deleted: 0 })
+
+    const { error: deleteError } = await supabase
+      .from("financial_performance")
+      .delete()
+      .in("id", deletableIds)
+
+    if (deleteError) throw new Error(deleteError.message)
+
+    return NextResponse.json({ deleted: deletableIds.length })
+  } catch (error) {
+    return jsonError(error)
+  }
+}

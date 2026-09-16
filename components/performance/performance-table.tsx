@@ -5,6 +5,7 @@ import { FileTextIcon } from "lucide-react"
 import { EmptyState } from "@/components/empty-state"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { Checkbox } from "@/components/ui/checkbox"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import {
   Table,
@@ -21,6 +22,9 @@ interface PerformanceTableProps {
   records: PerformanceRecord[]
   expandedId: string | null
   setExpandedId: (id: string | null) => void
+  selectedIds: Set<string>
+  onToggleSelected: (id: string) => void
+  onToggleSelectAll: (ids: string[]) => void
 }
 
 const dateFormatter = new Intl.DateTimeFormat("en-US", {
@@ -75,13 +79,29 @@ export function PerformanceTable({
   records,
   expandedId,
   setExpandedId,
+  selectedIds,
+  onToggleSelected,
+  onToggleSelectAll,
 }: PerformanceTableProps) {
+  const allIds = records.map((record) => record.id)
+  const allSelected = allIds.length > 0 && allIds.every((id) => selectedIds.has(id))
+  const someSelected = allIds.some((id) => selectedIds.has(id))
+
   return (
     <div className="overflow-hidden rounded-xl ring-1 ring-foreground/10">
       <div className="overflow-x-auto">
         <Table>
           <TableHeader>
             <TableRow>
+              <TableHead className="w-10">
+                <Checkbox
+                  checked={allSelected}
+                  indeterminate={!allSelected && someSelected}
+                  onCheckedChange={() => onToggleSelectAll(allIds)}
+                  onClick={(event) => event.stopPropagation()}
+                  aria-label="Select all rows"
+                />
+              </TableHead>
               <TableHead>Fund</TableHead>
               <TableHead>Manager</TableHead>
               <TableHead>Document Type</TableHead>
@@ -99,7 +119,7 @@ export function PerformanceTable({
           <TableBody>
             {records.length === 0 && (
               <TableRow>
-                <TableCell colSpan={11}>
+                <TableCell colSpan={12}>
                   <EmptyState
                     title="No performance records found"
                     description="Try changing the current search or filters."
@@ -118,7 +138,9 @@ export function PerformanceTable({
                   key={record.id}
                   record={record}
                   isExpanded={isExpanded}
+                  isSelected={selectedIds.has(record.id)}
                   onToggle={() => setExpandedId(isExpanded ? null : record.id)}
+                  onToggleSelected={() => onToggleSelected(record.id)}
                 />
               )
             })}
@@ -132,11 +154,15 @@ export function PerformanceTable({
 function TableRows({
   record,
   isExpanded,
+  isSelected,
   onToggle,
+  onToggleSelected,
 }: {
   record: PerformanceRecord
   isExpanded: boolean
+  isSelected: boolean
   onToggle: () => void
+  onToggleSelected: () => void
 }) {
   return (
     <>
@@ -144,6 +170,14 @@ function TableRows({
         className={cn("cursor-pointer", isExpanded && "border-b-0 bg-muted/30")}
         onClick={onToggle}
       >
+        <TableCell>
+          <Checkbox
+            checked={isSelected}
+            onCheckedChange={onToggleSelected}
+            onClick={(event) => event.stopPropagation()}
+            aria-label={`Select ${record.fund}`}
+          />
+        </TableCell>
         <TableCell className="font-medium">{record.fund}</TableCell>
         <TableCell>{record.manager}</TableCell>
         <TableCell>{record.documentType}</TableCell>
@@ -189,7 +223,7 @@ function TableRows({
 
       {isExpanded && (
         <TableRow className="bg-muted/30 hover:bg-muted/30">
-          <TableCell colSpan={11} className="px-4 py-3">
+          <TableCell colSpan={12} className="px-4 py-3">
             <dl className="grid gap-3 text-sm sm:grid-cols-2 lg:grid-cols-4">
               <div>
                 <dt className="text-muted-foreground">Document</dt>

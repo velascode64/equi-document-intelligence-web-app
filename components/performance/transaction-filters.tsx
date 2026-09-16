@@ -58,7 +58,9 @@ export function TransactionFilters({
         onValueChange={(v) => v && setFundFilter(v)}
       >
         <SelectTrigger className="w-full sm:w-44">
-          <SelectValue placeholder="Fund" />
+          <SelectValue placeholder="Fund">
+            {(value: string) => (value === "all" ? "All funds" : value)}
+          </SelectValue>
         </SelectTrigger>
         <SelectContent>
           <SelectItem value="all">All funds</SelectItem>
@@ -75,7 +77,9 @@ export function TransactionFilters({
         onValueChange={(v) => v && setDateFilter(v)}
       >
         <SelectTrigger className="w-full sm:w-40">
-          <SelectValue placeholder="Report date" />
+          <SelectValue placeholder="Report date">
+            {(value: string) => (value === "all" ? "All dates" : dateLabel(value))}
+          </SelectValue>
         </SelectTrigger>
         <SelectContent>
           <SelectItem value="all">All dates</SelectItem>
@@ -89,7 +93,11 @@ export function TransactionFilters({
 
       <Select value={sort} onValueChange={(v) => setSort(v as typeof sort)}>
         <SelectTrigger className="w-full sm:w-44">
-          <SelectValue placeholder="Sort by return" />
+          <SelectValue placeholder="Sort by return">
+            {(value: typeof sort) =>
+              value === "return-desc" ? "Return: high to low" : "Return: low to high"
+            }
+          </SelectValue>
         </SelectTrigger>
         <SelectContent>
           <SelectItem value="return-desc">Return: high to low</SelectItem>

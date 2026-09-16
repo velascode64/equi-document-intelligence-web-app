@@ -45,6 +45,8 @@ export function PerformancePageClient() {
   const [dateFilter, setDateFilter] = useState("all")
   const [sort, setSort] = useState<"return-desc" | "return-asc">("return-desc")
   const [expandedId, setExpandedId] = useState<string | null>(null)
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const [isDeleting, setIsDeleting] = useState(false)
 
   async function loadPerformance() {
     const response = await fetch("/api/smart-findoc-analyzer/financial-performance")
@@ -55,6 +57,43 @@ export function PerformancePageClient() {
     }
     const data = await response.json()
     setPerformanceRecords(data.performance ?? [])
+  }
+
+  function toggleSelected(id: string) {
+    setSelectedIds((current) => {
+      const next = new Set(current)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  function toggleSelectAll(ids: string[]) {
+    setSelectedIds((current) => {
+      const allSelected = ids.length > 0 && ids.every((id) => current.has(id))
+      return allSelected ? new Set() : new Set(ids)
+    })
+  }
+
+  async function deleteSelected() {
+    if (!selectedIds.size) return
+    setIsDeleting(true)
+    const response = await fetch("/api/smart-findoc-analyzer/financial-performance", {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ids: Array.from(selectedIds) }),
+    })
+    const data = await response.json().catch(() => ({}))
+    setIsDeleting(false)
+
+    if (!response.ok) {
+      setToast({ type: "error", message: data.error ?? "Could not delete the selected records." })
+      return
+    }
+
+    setSelectedIds(new Set())
+    setToast({ type: "success", message: `Deleted ${data.deleted ?? 0} record(s).` })
+    await loadPerformance()
   }
 
   async function loadConnection() {
@@ -334,10 +373,22 @@ export function PerformancePageClient() {
         reportDates={reportDates}
       />
 
+      {selectedIds.size > 0 && (
+        <div className="flex items-center justify-between rounded-xl bg-muted p-3 text-sm">
+          <span>{selectedIds.size} selected</span>
+          <Button variant="destructive" size="sm" onClick={deleteSelected} disabled={isDeleting}>
+            {isDeleting ? "Deleting..." : "Delete selected"}
+          </Button>
+        </div>
+      )}
+
       <PerformanceTable
         records={records}
         expandedId={expandedId}
         setExpandedId={setExpandedId}
+        selectedIds={selectedIds}
+        onToggleSelected={toggleSelected}
+        onToggleSelectAll={toggleSelectAll}
       />
     </div>
   )
