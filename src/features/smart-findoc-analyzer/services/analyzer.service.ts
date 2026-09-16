@@ -18,7 +18,7 @@ import {
   replaceFinancialPerformanceForDocument,
   toFinancialPerformanceRows,
 } from "./financial-performance.service"
-import { findDocumentByDriveFileId, shouldProcessDriveDocument } from "./persistence.service"
+import { findDocumentByDriveFileId } from "./persistence.service"
 import type { PartialOAuthCredentials } from "@/src/provider/google.provider"
 import { createNotification } from "@/src/features/notifications"
 
@@ -203,7 +203,6 @@ export async function syncGoogleDriveFolder(
           content,
           driveModifiedTime: file.modifiedTime,
           driveMd5Checksum: file.md5Checksum,
-          existingDocumentId: existing?.id,
         },
         { ...dependencies, supabase }
       )
