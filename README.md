@@ -1,36 +1,81 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Equi Document Intelligence
 
-## Getting Started
+Equi connects a user's Google Drive folder, discovers financial PDFs, HTML
+documents, and CSVs, extracts normalized performance data with Anthropic, and
+shows it in a searchable dashboard. The goal is to compare heterogeneous fund
+factsheets, account statements, and performance reports without creating a
+custom parser for each manager.
 
-First, run the development server:
+## Project Documents
+
+- Product scope: [docs/product-definitions/project-definition.md](docs/product-definitions/project-definition.md)
+- Technical architecture: [docs/product-definitions/technical_architecture.md](docs/product-definitions/technical_architecture.md)
+- Dashboard and interaction design: [docs/product-definitions/design-system.md](docs/product-definitions/design-system.md)
+- Demo video: [equi-findoc-ai.mp4](./equi-findoc-ai.mp4)
+
+## Prerequisites
+
+- Bun 1.3 or newer
+- Node.js 22 or newer
+- A Supabase project
+- A Google Cloud OAuth client with Google Drive API enabled
+- An Anthropic API key for real extraction; set `SMART_FINDOC_USE_MOCK_LLM=true`
+	to run the UI flow without LLM calls
+
+## Configuration
+
+Create `.env` with env.example variables. 
+Never commit values for secrets.
+
+## Run Locally
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
+bun install
 bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open `http://localhost:3000`, sign in, connect Google Drive, choose a folder,
+and start a sync.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Database
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Apply the migrations in `supabase/migrations/` to the target Supabase project.
+The migration set creates profiles, Drive connections, documents,
+notifications, and normalized financial-performance records with RLS policies.
 
-## Learn More
+## Validation
 
-To learn more about Next.js, take a look at the following resources:
+```bash
+bun run lint
+bun run test
+bun run test:integration
+bun run build
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+The integration suite requires `ANTHROPIC_API_KEY` and may incur model usage.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Deployment
 
-## Deploy on Vercel
+Deploy as a Next.js application with Node.js 22 or newer. Install dependencies
+with Bun and run the production build:
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+```text
+Install Command: bun install --frozen-lockfile
+Build Command: bun run build
+```
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Set every variable listed in Configuration in the deployment environment. Add
+the deployed `/auth/callback` URL to the Google OAuth client's allowed redirect
+URIs.
+
+## Roadmap / Pending Work
+
+The core assessment flow is complete. The following improvements are pending:
+
+* CSV and HTML support — Complete and validate ingestion and LLM extraction for CSV and HTML documents.
+* Google Drive push notifications — Replace demo polling with the Drive Changes API and webhooks.
+* Content-based deduplication — Add SHA-256 fingerprints to detect duplicated documents with different filenames or Drive IDs.
+* Fund and document-type catalogues — Normalize extracted fund names and document types using canonical records.
+* Expand automated tests — Add coverage for CSV/HTML ingestion, API routes, notifications, and edge cases.
+* Supabase repository layer — Move database queries into dedicated repositories and keep route handlers thin.
+* ESLint cleanup — Resolve remaining lint and type-safety issues.

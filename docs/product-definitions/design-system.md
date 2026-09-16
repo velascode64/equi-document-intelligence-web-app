@@ -60,6 +60,9 @@ able to answer questions such as “Which fund had the best return in January
 | Status | `Processing`, `Processed`, or `Failed` |
 | Source | Source document name and an action to open it |
 
+Strategy text is shown up to 50 characters in the table. A simple tooltip
+reveals the complete value on hover or keyboard focus when it is truncated.
+
 Example:
 
 | Fund | Manager | Document Type | Report Date | Strategy | AUM | NAV / Ending Balance | YTD Return | Since Inception | Status | Source |
@@ -82,13 +85,14 @@ sample data, actions, and icons. Do not add an AI or conversational experience.
 
 ## Notifications
 
-Notifications communicate document-processing status only.
+Notifications communicate the discovery of a new document only.
 
-Show a notification when processing starts or completes. Each notification
-includes the document name, processing status, and timestamp. Notifications are
-informational; no user action is required.
+Create exactly one notification when a new document is persisted and begins
+processing. Do not create notifications while listing Drive files, for existing
+documents, when processing completes, or when processing fails. Completion and
+failure are shown through the document status in the dashboard. Notifications
+are informational; no user action is required.
 
-Examples:
+Example:
 
 - `Vanguard_Factsheet_Jan_2026.pdf` is being processed.
-- `Vanguard_Factsheet_Jan_2026.pdf` was processed successfully and its extracted data is available.

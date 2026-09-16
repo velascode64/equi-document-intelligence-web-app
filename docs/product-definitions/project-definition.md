@@ -2,15 +2,13 @@
 
 ## Project Statement
 
-### Option A: Aplicación Web de Inteligencia de Documentos
-
-Integración: Google Drive (OAuth)
-Desarrollar una aplicación web que se conecte a Google Drive del usuario mediante OAuth, monitoree una carpeta específica en busca de documentos financieros (PDF, correos electrónicos en HTML, archivos CSV —como fichas técnicas de fondos, estados de cuenta e informes de rendimiento de distintos gestores) y utilice modelos de lenguaje (LLM) para extraer datos estructurados. El sistema almacenará los resultados en una base de datos y ofrecerá una interfaz de usuario para explorar, buscar y realizar consultas sobre toda la información procesada.
-
-La aplicación debe adaptarse a la realidad de que cada documento es diferente: distintos diseños, terminología variada y formatos diversos. El usuario no debería tener que configurar un analizador (parser) para cada documento. La conexión con Google Drive debe sincronizarse de modo que los nuevos archivos añadidos a la carpeta se detecten y procesen automáticamente, sin necesidad de volver a subirlos de forma manual.
-
-Imagine el siguiente escenario: "Conecto mi cuenta de Google Drive, selecciono una carpeta que contiene 20 archivos PDF de formato irregular provenientes de distintos gestores de fondos y, de inmediato, puedo visualizar una tabla con todos los datos de rendimiento extraídos, filtrar por fondo o fecha y preguntar: '¿Qué fondo obtuvo el mejor rendimiento en enero?'; además, cuando llega una nueva ficha técnica a la carpeta, esta se procesa automáticamente".
-
+###  Document Intelligence Web App
+Integration: Google Drive (OAuth)
+Build a web application that connects to a user's Google Drive via OAuth, monitors a designated folder for financial documents (PDFs, HTML emails, CSVs — think fund factsheets, account statements, performance reports from different managers), and uses LLMs to extract structured data. The system stores the results in a database and provides a UI to browse, search, and query across everything that's been ingested.
+ 
+The app should handle the reality that every document looks different — different layouts, different terminology, different formats. The user shouldn't need to configure a parser for each one. The Google Drive connection should sync so new files dropped into the folder are picked up without manual re-upload.
+ 
+Think: "I connect my Google Drive, point it at a folder with 20 messy PDFs from different fund managers, and I can immediately see a table of all extracted performance data, filter by fund or date, and ask 'Which fund had the best January return?' — and when a new factsheet lands in the folder, it's processed automatically."
 
 ---
 
@@ -38,6 +36,11 @@ The user should not need to configure custom parsers for each document format.
 8. The dashboard shows the processed documents and extracted financial records.
 9. The user can search and filter the extracted information.
 10. New files added to the Drive folder are detected and processed automatically.
+
+The system must not reprocess an existing document or call the LLM during a
+sync unless it is a genuinely new source document. A notification is created
+only when a new `documents` record is created; completing or failing the
+extraction only changes that document's status.
 
 ---
 
@@ -70,8 +73,12 @@ Responsible for:
 * Google OAuth connection
 * Folder selection
 * Discovering files
-* Detecting new or updated files
+* Detecting new files without manual upload
 * Triggering document processing
+
+The target production integration uses Google Drive's Changes API and push
+notifications. Client-side polling is a temporary demo mechanism, not the
+production source of truth for detecting changes.
 
 ### Documents
 
@@ -106,6 +113,19 @@ Initial target information may include:
 The extraction schema can evolve once we have representative sample documents.
 
 The raw extraction result can also be retained to avoid losing information that is not yet represented in the normalized schema.
+
+### Classification and Deduplication
+
+The application maintains a canonical fund catalogue and a document-type
+catalogue. Extracted performance rows link to a canonical fund where a match
+is known; unmatched names are held for review rather than silently creating
+near-duplicate funds.
+
+Documents are deduplicated at two levels:
+
+* Google Drive file identity prevents processing the same Drive file twice.
+* A SHA-256 content fingerprint prevents processing equivalent content that
+	arrives under a different Drive file ID or filename.
 
 ### Dashboard
 
@@ -156,3 +176,15 @@ For the initial version we are **not** building:
 * Workflow builders
 * Complex permissions or enterprise roles
 * A generalized document-processing platform
+
+---
+
+## Delivery Requirements
+
+The repository must include:
+
+* Working source code and database migrations.
+* A README with setup, configuration, validation, and deployment guidance.
+* A five-minute walkthrough video at `equi-findoc-ai.mp4`.
+* Automated coverage for PDF, CSV, and HTML ingestion; Drive sync and
+	deduplication; persistence; and the API-level happy and failure paths.

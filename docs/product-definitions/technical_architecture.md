@@ -17,6 +17,11 @@ Build a simple, modular document intelligence application that:
 
 The system should remain focused on the assessment requirements and avoid unnecessary infrastructure.
 
+The application is API-first: browser components call Next.js route handlers;
+route handlers authenticate and validate HTTP input; feature services own use
+cases; repository wrappers own Supabase queries. Database clients never cross
+the browser boundary.
+
 ---
 
 ## 2. Architecture
@@ -62,6 +67,13 @@ Used for:
 * PostgreSQL database
 * Authentication if needed
 * Server-side database access
+
+Route handlers must not contain table queries. They authenticate the request
+and invoke feature services. Repository wrappers create a server-only client
+and encapsulate `.from(...)` calls. The service-role key is server-only and is
+read from `SUPABASE_SERVICE_ROLE_KEY`; it must never use a `NEXT_PUBLIC_` name.
+Use the authenticated session client and RLS for user-owned operations where
+possible; reserve the service-role client for justified internal operations.
 
 Google Drive remains the source of truth for original documents.
 
@@ -238,6 +250,8 @@ Do not place Google OAuth or Drive-specific logic directly inside UI components.
 erDiagram
     USER ||--o| DRIVE_CONNECTION : connects
     USER ||--o{ DOCUMENT : owns
+    FUND ||--o{ FINANCIAL_PERFORMANCE : classifies
+    DOCUMENT_TYPE ||--o{ DOCUMENT : classifies
 
     DRIVE_CONNECTION ||--o{ DOCUMENT : syncs
 
@@ -324,6 +338,36 @@ Relationships:
 
 `drive_file_id` uniquely identifies the source file from Google Drive.
 
+`content_sha256` is calculated from the downloaded bytes and is used with the
+owner ID to identify equivalent files uploaded with different names or Drive
+IDs. It must have a unique index on `(user_id, content_sha256)`.
+
+---
+
+### Fund
+
+Canonical representation of an investment fund or account.
+
+Key data:
+
+* `id`
+* `canonical_name`
+* `manager`
+* `created_at`
+* `updated_at`
+
+`canonical_name` is unique per manager when a manager is available. Raw LLM
+names remain in the extraction for traceability; matching and normalization are
+performed by a dedicated classification service.
+
+---
+
+### DocumentType
+
+Lookup catalogue for document classifications, initially `fund_factsheet`,
+`account_statement`, and `performance_report`. Documents and extracted rows
+reference this catalogue instead of relying on repeated free-text labels.
+
 ---
 
 ### FinancialPerformance
@@ -334,6 +378,7 @@ Key data:
 
 * `id`
 * `document_id`
+* `fund_id`
 * `user_id`
 * `drive_file_id`
 * `fund`
@@ -362,23 +407,28 @@ Every normalized record must keep a reference to its source document.
 
 ```mermaid
 flowchart TD
-    A[syncGoogleDriveFolder] --> B[List Drive Folder Documents]
-    B --> C[Download Supported Files]
-    C --> D[Create Document Row]
-    D --> E[Parse Document Content]
-    E --> F[Anthropic Tool Extraction]
-    F --> G[Schema Validation]
-    G --> H[Persist Performance Rows]
-    H --> I[Persist Data]
-    I --> J[Update Document Status]
-    J --> K[Dashboard]
+    A[Drive change] --> B[List changed Drive files]
+    B --> C{New Drive ID?}
+    C -->|No| K[Skip]
+    C -->|Yes| D[Download supported file]
+    D --> E{Content fingerprint exists?}
+    E -->|Yes| K
+    E -->|No| F[Create Document Row and notification]
+    F --> G[Anthropic Tool Extraction]
+    G --> H[Zod Validation]
+    H --> I[Classify fund and document type]
+    I --> J[Persist performance rows]
+    J --> L[Update Document Status]
 ```
 
 ---
 
 ### 5.2 Drive Sync
 
-The Drive integration currently lists supported files in the selected folder and downloads them for processing through `syncGoogleDriveFolder`.
+The current implementation lists supported files in the selected folder through
+`syncGoogleDriveFolder`. It skips a file whose `(user_id, drive_file_id)` is
+already present in `documents`, before downloading the file or invoking the
+LLM. It creates one notification only for the newly-created document.
 
 ```mermaid
 flowchart TD
@@ -387,12 +437,23 @@ flowchart TD
     C --> D[processDocument]
 ```
 
-Current rules:
+Implemented rules:
 
 * PDF, HTML, and CSV files are accepted.
 * Unsupported mime types are ignored.
-* Each supported file is passed into `processDocument`.
-* Idempotency and `modified_time` reprocessing are still pending.
+* An existing Drive file is skipped: no download, LLM call, or notification.
+* A new document creates one `document_processing_started` notification.
+* Completing or failing only updates the document status.
+
+Planned production synchronization:
+
+* Subscribe to Google Drive Changes API push notifications at a server-side
+    webhook endpoint.
+* Persist the Drive page token/cursor per connection and request only changes
+    since the stored cursor.
+* Verify and renew watch channels before their expiration.
+* Calculate and persist `content_sha256` before extraction to deduplicate files
+    with different names and IDs but identical content.
 
 ---
 
@@ -507,6 +568,10 @@ flowchart TD
     B --> C[Save extraction_error]
 ```
 
+All Supabase operations are isolated in server-side repository wrappers. The
+feature service coordinates repositories and provider actions but does not
+receive a client from a browser component.
+
 ---
 
 ## 6. Validation
@@ -559,14 +624,18 @@ src/features/smart-findoc-analyzer/
 
 ### What to Test
 
-Unit tests should cover:
+Automated tests must cover:
 
 * `syncGoogleDriveFolder`
 * Google Drive listing/download mocks
 * LLM extraction mock
 * Supabase persistence mock
 * Error handling
-* Reprocessing / deduplication behavior when implemented
+* A repeated Drive sync skips existing files and makes no LLM call
+* Content-fingerprint deduplication for files with different names
+* PDF, CSV, and HTML parsing and extraction contracts
+* API route authentication, validation, success, and error responses
+* At least one integration test against the configured Supabase schema
 
 ### Mocking
 
@@ -607,12 +676,17 @@ src/features/smart-findoc-analyzer/__tests__/
 Use:
 
 ```bash
-bun run test:unit
+bun run test
 ```
 
 Vitest is the default test runner for module-level unit tests.
 
-Integration and end-to-end testing are outside the initial scope unless a specific feature requires them.
+Run the real-LLM integration suite explicitly only when its credentials are
+available:
+
+```bash
+bun run test:integration
+```
 
 
 ## 9. Non-Goals
