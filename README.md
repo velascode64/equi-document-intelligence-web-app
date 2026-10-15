@@ -11,9 +11,6 @@ custom parser for each manager.
 - Product scope: [docs/product-definitions/project-definition.md](docs/product-definitions/project-definition.md)
 - Technical architecture: [docs/product-definitions/technical_architecture.md](docs/product-definitions/technical_architecture.md)
 - Dashboard and interaction design: [docs/product-definitions/design-system.md](docs/product-definitions/design-system.md)
-- Demo video:
-
-  [![Equi Document Intelligence demo](https://img.youtube.com/vi/rHy39tqk-n4/maxresdefault.jpg)](https://www.youtube.com/watch?v=rHy39tqk-n4)
 
 ## Prerequisites
 
